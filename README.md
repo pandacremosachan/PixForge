@@ -8,6 +8,24 @@ PixForge is a standalone pixel, model and animation workbench, with a separately
 | Harness-independent companion skill | 1.8.0 | [Skill entry](.agents/skills/pixelforge/SKILL.md) |
 | Public API | 1 | [Interface contract](apps/pixforge/PUBLIC_API.md) |
 
+## Install with your AI agent
+
+Copy this prompt into your coding agent. It will follow the [installation guide](INSTALL.md), choose the current harness's supported skill location, connect the independent application and verify the connection.
+
+```text
+Read and follow https://github.com/pandacremosachan/PixForge/blob/main/INSTALL.md (using an authenticated Git clone if needed) to install and configure the PixForge skill for this agent environment, then verify the connection.
+```
+
+中文指令：
+
+```text
+请读取并遵循 https://github.com/pandacremosachan/PixForge/blob/main/INSTALL.md（必要时通过已有授权的 Git 克隆读取），为当前代理环境安装并配置 PixForge skill，并验证连接。
+```
+
+This repository is private. The agent needs an existing authenticated GitHub connection with repository access, or a local checkout it can read. Signing in to a browser does not necessarily authenticate the agent's Git or URL tools. For an existing checkout, ask the agent to read its root `INSTALL.md` and follow the same steps locally.
+
+The skill supports any harness that can load its instructions and execute a process or connect MCP. The ready-to-run application currently requires Windows x64; other hosts need an existing compatible application connection. Missing repository access or software is reported as a pending setup step.
+
 ## Downloads
 
 Download the three packages from [Releases](https://github.com/pandacremosachan/PixForge/releases):

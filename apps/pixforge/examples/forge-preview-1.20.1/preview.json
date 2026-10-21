@@ -1,0 +1,22 @@
+{
+  "subject": {
+    "kind": "blockstate",
+    "id": "pixforge_preview_demo:machine"
+  },
+  "state": {
+    "facing": "east",
+    "active": "true"
+  },
+  "block_tints": {
+    "0": "#70b94b"
+  },
+  "item_tints": {
+    "0": "#d6ad66"
+  },
+  "camera": {
+    "yaw": 35,
+    "pitch": 22,
+    "distance": 56
+  },
+  "size": 512
+}

@@ -1,0 +1,8 @@
+# Starter structure only; replace palette and motif for the user's design.
+rect 0 0 15 15 #3a414bff
+rect 1 1 14 14 #75818fff
+rect 2 2 13 13 #515c6aff
+rect 3 3 12 4 #9cabb8ff
+rect 3 5 4 11 #69798aff
+rect 5 11 12 12 #29323fff
+read 0 0 16 16

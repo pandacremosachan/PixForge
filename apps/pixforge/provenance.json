@@ -1,0 +1,120 @@
+{
+  "origin": "existing user-level PixForge skill",
+  "tool_version": "2.9.0",
+  "license": "not declared in original installation",
+  "capabilities": [
+    "static pixels",
+    "transparent material guidance",
+    "local and rotational symmetry checks",
+    "exact RGBA palette and protected-pixel checks",
+    "all-frame vertical animation checks",
+    "lossless timed playback from explicit project-derived animation plans",
+    "structure/mask/palette workflows and model UV/state review guidance",
+    "atomic script batches and non-mutating dry-run previews",
+    "shared CLI/MCP native, background, tile and all-frame evidence",
+    "content-bound visual review records with stale-input and evidence detection",
+    "shared desktop canvas, RGBA layers, manual tools and global undo/redo",
+    "authenticated local MCP/CLI session with document and revision conflict guards",
+    "in-memory timed animation playback, tiling, backgrounds and onion skin",
+    "editable project persistence, recovery and user feedback visible to AI",
+    "user-confirmed native PNG export bound to current pixels and animation timing",
+    "frame-scoped pencil, eraser, fill, shapes and horizontal/vertical mirrored drawing",
+    "lossless multi-layer frame insertion, duplication, deletion and explicit playback ordering",
+    "equivalent headless CLI/MCP drawing, lossless animation review, chat approval and export",
+    "optional GUI attaches to shared core with remote manual stroke leases and global history",
+    "persistent headless session recovery with monotonic revision across restarts",
+    "shared base AABB shapes with independent collision/selection inheritance and explicit empty overrides",
+    "atomic shape editing, embedded single-atlas Java elements model and shared approval/history/recovery",
+    "neutral shape JSON and explicit Forge 1.20.1 Mojmap Java helper export",
+    "optional GUI model/shape editor using the same independent core",
+    "bounded maximal-box cover with exact union packing and explicit conservative model-distance approximation",
+    "automatic preservation of detected shape symmetries, dry-run proposals and shared construction history",
+    "lossless Java export packing with balanced unoptimized unions and one final optimization"
+  ],
+  "upstream_method_research": {
+    "date": "2026-10-11",
+    "implementation": "independent procedures and Pillow/HTML helpers; no upstream code or assets incorporated",
+    "pixelorama": {
+      "repository": "https://github.com/Orama-Interactive/Pixelorama",
+      "commit": "e205f47699f424244a7ddc738bac2e0ca42769c1",
+      "license": "MIT"
+    },
+    "blockbench": {
+      "repository": "https://github.com/JannisX11/blockbench",
+      "commit": "7c92e27d237e365110030d73e92c5d1605f0d311",
+      "license": "GPL-3.0"
+    },
+    "material_maker": {
+      "repository": "https://github.com/RodZill4/material-maker",
+      "commit": "174f15edece663bf10f78588840873fa2fd17bc7",
+      "license": "MIT"
+    },
+    "reference": ".agents/skills/pixelforge/references/upstream-workflows.md"
+  },
+  "pixel_loom_method_research": {
+    "date": "2026-10-17",
+    "repository": "https://github.com/yangsir2077/pixel-loom",
+    "commit": "5b77d8def0ffec3e05d59bfa88bea4998aeeedb1",
+    "license": "MIT",
+    "implementation": "independent CLI/.px extensions and Python desktop; no upstream code or assets copied",
+    "reference": ".agents/skills/pixelforge/references/transactions-review.md",
+    "desktop_reference": ".agents/skills/pixelforge/references/desktop.md"
+  },
+  "desktop_ui_design_reference": {
+    "date": "2026-10-18",
+    "pixieditor": {
+      "repository": "https://github.com/PixiEditor/PixiEditor",
+      "commit": "11ba9ba2bf7291ea20aa19ce8e9c85d9a45e212a",
+      "license": "LGPL-3.0",
+      "use": "primary workspace and control layout reference"
+    },
+    "pixelorama": {
+      "repository": "https://github.com/Orama-Interactive/Pixelorama",
+      "commit": "845de22bd1b7fa43edf3024589a23c3e59c07ba2",
+      "license": "MIT",
+      "use": "pixel, frame thumbnail and animation interaction reference"
+    },
+    "implementation": "independent Qt/PySide6 UI and original vector icons; no upstream source, artwork, brand assets or fonts incorporated",
+    "runtime": "optional PySide6-Essentials package with upstream bundled licenses"
+  },
+  "software_source": "apps/pixforge",
+  "skill_source": ".agents/skills/pixelforge",
+  "skill_version": "1.8.0",
+  "public_api_version": 1,
+  "minecraft_assets": {
+    "capability": "minecraft-assets/v1",
+    "profile": "forge-1.20.1",
+    "resource_pack_format": 15,
+    "implementation": "independent application-owned parser, graph, diagnostics and versioned asset exporter; public API integration only",
+    "target_reference": "https://docs.minecraftforge.net/en/1.20.1/concepts/resources/",
+    "game_validation": false
+  },
+  "forge_runtime": {
+    "capability": "forge-runtime/v1",
+    "minecraft": "1.20.1",
+    "java_release": 17,
+    "default_compile_baseline": "47.2.0",
+    "implementation": "application-owned scene state player, BER, particle provider and snapshot codec; skill uses public interfaces only",
+    "reference": "https://docs.minecraftforge.net/en/1.20.1/rendering/modelloaders/bakedmodel/",
+    "in_game_validated": false
+  },
+  "minecraft_preview": {
+    "capability": "minecraft-preview/v1",
+    "profile": "forge-1.20.1",
+    "implementation": "Original application-owned source geometry, gamma mipmap, controlled tint/light/AO and native CPU/OpenGL preview; external skill uses public interfaces only",
+    "actual_api_probe": "Caller-supplied Forge 1.20.1-47.4.1 mapped classes; no game process",
+    "research_assets_redistributed": false,
+    "in_game_validated": false
+  },
+  "runtime_workbench": {
+    "version": "2.6.0",
+    "target": "Forge 1.20.1",
+    "capabilities": [
+      "minecraft-animation/v1",
+      "minecraft-regression/v1"
+    ],
+    "ownership": "standalone application; skill calls only public interfaces",
+    "third_party_research_assets_included": false,
+    "in_game_validated": false
+  }
+}

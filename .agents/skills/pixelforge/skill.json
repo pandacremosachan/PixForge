@@ -1,0 +1,15 @@
+{
+  "schema": "pixforge.skill/v1",
+  "name": "pixelforge",
+  "version": "1.8.0",
+  "supported_public_api_versions": [
+    1
+  ],
+  "client": "scripts/pixforge_client.py",
+  "client_runtime": "Optional Python 3.10+ standard library; direct EXE CLI/MCP needs no client runtime",
+  "software_required": "Independently installed PixForge with application.json and public EXE interfaces",
+  "ownership": "Instructions, references and public-interface client only; no application implementation or project state",
+  "harness_contract": "Readable Markdown plus process execution or standard MCP stdio; no host-specific APIs",
+  "workflows": "assets/workflows.json",
+  "software_baseline": "2.9.0"
+}

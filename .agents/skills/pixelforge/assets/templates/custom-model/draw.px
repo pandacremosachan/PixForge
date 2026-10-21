@@ -1,0 +1,6 @@
+# Base samples top half, rotor samples bottom half.
+rect 0 0 15 7 #586779ff
+rect 1 1 14 2 #9eb1bdff
+rect 0 8 15 15 #b97d43ff
+rect 2 9 13 10 #f1ca7bff
+read 0 0 16 16

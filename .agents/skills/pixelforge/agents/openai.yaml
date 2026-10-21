@@ -1,0 +1,4 @@
+interface:
+  display_name: "PixForge 像素材质"
+  short_description: "按完整流程与模板制作方块、物品、模型、形状、动画和数据材质，通过独立工作台编辑"
+  default_prompt: "使用 $pixelforge 选择对应的完整流程和模板，按当前项目的版本、资源、尺寸与风格操作独立工作台，保存可编辑工程，展示实际预览后按我的当前授权交付。"

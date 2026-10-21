@@ -1,0 +1,6 @@
+# This fixture packs 4 frames vertically; verify returned rectangles before reusing.
+# Each source is a copied seed. Replace only its indicator, never repaint its base.
+rect 6 6 9 9 #89d8beff
+rect 6 22 9 25 #baf7d9ff
+rect 6 38 9 41 #89d8beff
+rect 6 54 9 57 #447e78ff

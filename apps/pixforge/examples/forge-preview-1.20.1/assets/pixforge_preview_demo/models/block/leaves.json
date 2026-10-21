@@ -1,0 +1,47 @@
+{
+  "parent": "pixforge_preview_demo:block/display_base",
+  "render_type": "minecraft:cutout_mipped",
+  "textures": {
+    "leaves": "pixforge_preview_demo:block/leaves"
+  },
+  "elements": [
+    {
+      "from": [
+        3,
+        7,
+        3
+      ],
+      "to": [
+        13,
+        7,
+        13
+      ],
+      "faces": {
+        "north": {
+          "texture": "#leaves",
+          "tintindex": 0
+        },
+        "south": {
+          "texture": "#leaves",
+          "tintindex": 0
+        },
+        "east": {
+          "texture": "#leaves",
+          "tintindex": 0
+        },
+        "west": {
+          "texture": "#leaves",
+          "tintindex": 0
+        },
+        "up": {
+          "texture": "#leaves",
+          "tintindex": 0
+        },
+        "down": {
+          "texture": "#leaves",
+          "tintindex": 0
+        }
+      }
+    }
+  ]
+}

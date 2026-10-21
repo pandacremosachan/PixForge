@@ -1,0 +1,25 @@
+{
+  "schema": "pixforge.application/v1",
+  "application": "PixForge",
+  "version": "2.9.0",
+  "public_api_version": 1,
+  "interfaces": [
+    "cli",
+    "mcp-stdio",
+    "authenticated-loopback-json"
+  ],
+  "commands": {
+    "cli": "--cli",
+    "mcp": "--mcp",
+    "describe": "--describe"
+  },
+  "compatibility": "Public API major versions are independent of software and skill versions. CLI command help and MCP tools expose available capabilities.",
+  "capabilities": [
+    "minecraft-assets/v1",
+    "forge-runtime/v1",
+    "minecraft-preview/v1",
+    "minecraft-animation/v1",
+    "minecraft-regression/v1",
+    "minecraft-material/v1"
+  ]
+}

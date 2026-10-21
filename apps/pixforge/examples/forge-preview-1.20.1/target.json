@@ -1,0 +1,28 @@
+{
+  "schema": "pixforge.minecraft-project/v1",
+  "profile": "forge-1.20.1",
+  "namespace": "pixforge_preview_demo",
+  "sources": [
+    {
+      "name": "original-preview-example",
+      "path": ".",
+      "role": "project"
+    }
+  ],
+  "entries": [
+    {
+      "kind": "blockstate",
+      "id": "pixforge_preview_demo:machine"
+    },
+    {
+      "kind": "blockstate",
+      "id": "pixforge_preview_demo:asymmetric"
+    },
+    {
+      "kind": "model",
+      "id": "pixforge_preview_demo:item/diagnostic"
+    }
+  ],
+  "binding": null,
+  "description": "Original controlled Forge 1.20.1 preview example; no Mojang assets"
+}

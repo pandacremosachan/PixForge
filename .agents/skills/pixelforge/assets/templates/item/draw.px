@@ -1,0 +1,13 @@
+# Transparent 16x16 material shard, not a tool implementation.
+palette O=#283649ff S=#356887ff M=#4eacbaff H=#b1e8e2ff
+grid 4 1
+...O....
+..OMO...
+.OMHMO..
+OMHHMMO.
+OMHMMMO.
+.OMMMO..
+..OMO...
+...O....
+
+read 0 0 16 16

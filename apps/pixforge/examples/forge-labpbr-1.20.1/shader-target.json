@@ -1,0 +1,21 @@
+{
+  "name": "PixForge-LabPBR-Probe-1.0.0.zip",
+  "version": "1.0.0",
+  "loader": "optifine",
+  "loader_version": "1.20.1_HD_U_I6",
+  "minecraft": "1.20.1",
+  "forge": "47.2.18",
+  "sha256": "ea732fe3e1f85decc523f8236dbb3efa7fa05ba88ae27239d5ff544f63908866",
+  "features": {
+    "normals": true,
+    "smoothness": true,
+    "f0": true,
+    "hardcoded_metals": false,
+    "ao": true,
+    "height": false,
+    "porosity": false,
+    "sss": false,
+    "emission": true
+  },
+  "options": {}
+}

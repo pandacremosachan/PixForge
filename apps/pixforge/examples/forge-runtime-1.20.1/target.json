@@ -1,0 +1,18 @@
+{
+  "schema": "pixforge.minecraft-project/v2",
+  "profile": "forge-1.20.1",
+  "namespace": "pixforge_demo",
+  "sources": [],
+  "entries": [],
+  "binding": null,
+  "description": "PixForge Forge 1.20.1 original runtime example",
+  "runtime": {
+    "schema": "pixforge.forge-runtime/v1",
+    "java_package": "dev.pixforge.demo",
+    "forge_version": "47.2.0",
+    "scene": {
+      "block": "pixforge_demo:animated_machine",
+      "render_type": "cutout"
+    }
+  }
+}

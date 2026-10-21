@@ -1,0 +1,13 @@
+{
+  "schema": "pixforge.minecraft-project/v1",
+  "profile": "forge-1.20.1",
+  "namespace": "${namespace}",
+  "description": "${name} resources",
+  "sources": [],
+  "entries": [],
+  "binding": {
+    "kind": "item",
+    "path": "${name}",
+    "texture": "item/${name}"
+  }
+}

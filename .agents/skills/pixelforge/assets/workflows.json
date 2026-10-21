@@ -1,0 +1,129 @@
+{
+  "schema": "pixforge.skill-workflows/v1",
+  "skill_version": "1.8.0",
+  "software_baseline": "2.9.0",
+  "public_api_version": 1,
+  "recipes": [
+    {
+      "id": "block-shared",
+      "description": "六面共用的普通方块",
+      "workflow": "references/workflows/block.md",
+      "template": "assets/templates/block-shared",
+      "capabilities": [
+        "minecraft-assets/v1"
+      ],
+      "preset": "cube_shared",
+      "example_dimensions": [
+        16,
+        16
+      ]
+    },
+    {
+      "id": "block-faces",
+      "description": "六面独立的普通方块",
+      "workflow": "references/workflows/block.md",
+      "template": "assets/templates/block-faces",
+      "capabilities": [
+        "minecraft-assets/v1"
+      ],
+      "preset": "cube_faces",
+      "example_dimensions": [
+        48,
+        32
+      ]
+    },
+    {
+      "id": "item",
+      "description": "透明平面物品",
+      "workflow": "references/workflows/item.md",
+      "template": "assets/templates/item",
+      "capabilities": [
+        "minecraft-assets/v1"
+      ],
+      "preset": "pixels",
+      "example_dimensions": [
+        16,
+        16
+      ]
+    },
+    {
+      "id": "custom-model",
+      "description": "自定义单图集模型和碰撞/选中形状",
+      "workflow": "references/workflows/model-shapes.md",
+      "template": "assets/templates/custom-model",
+      "capabilities": [
+        "minecraft-assets/v1"
+      ],
+      "preset": "model",
+      "example_dimensions": [
+        16,
+        16
+      ]
+    },
+    {
+      "id": "texture-animation",
+      "description": "四源帧、非等时长的材质动画",
+      "workflow": "references/workflows/texture-animation.md",
+      "template": "assets/templates/texture-animation",
+      "capabilities": [
+        "minecraft-assets/v1"
+      ],
+      "preset": "cube_shared",
+      "example_dimensions": [
+        16,
+        16
+      ]
+    },
+    {
+      "id": "scene-states",
+      "description": "待机/运行状态与部件关键帧",
+      "workflow": "references/workflows/scene-animation.md",
+      "template": "assets/templates/scene-states",
+      "capabilities": [],
+      "preset": "model",
+      "example_dimensions": [
+        16,
+        16
+      ]
+    },
+    {
+      "id": "particles",
+      "description": "随转子出生的粒子场景",
+      "workflow": "references/workflows/scene-animation.md",
+      "template": "assets/templates/particles",
+      "capabilities": [],
+      "preset": "model",
+      "example_dimensions": [
+        16,
+        16
+      ]
+    },
+    {
+      "id": "gui",
+      "description": "独立 GUI 图标",
+      "workflow": "references/workflows/gui.md",
+      "template": "assets/templates/gui",
+      "capabilities": [],
+      "preset": "pixels",
+      "example_dimensions": [
+        16,
+        16
+      ]
+    },
+    {
+      "id": "labpbr",
+      "description": "独立 LabPBR 通道",
+      "workflow": "references/workflows/labpbr.md",
+      "template": "assets/templates/labpbr",
+      "capabilities": [
+        "minecraft-material/v1",
+        "minecraft-assets/v1"
+      ],
+      "preset": "cube_shared",
+      "example_dimensions": [
+        16,
+        16
+      ]
+    }
+  ]
+}

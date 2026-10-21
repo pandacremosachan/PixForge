@@ -1,0 +1,14 @@
+.runtime/
+**/.venv/
+**/__pycache__/
+**/.pytest_cache/
+**/node_modules/
+**/workspace/
+**/pixforge-development.json
+*.pyc
+*.pyo
+*.obj
+*.pdb
+*.exe
+*.dll
+*.pyd

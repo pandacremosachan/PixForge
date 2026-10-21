@@ -1,0 +1,13 @@
+# Standalone transparent status icon. The consuming GUI supplies UV and scaling.
+palette S=#324152ff M=#53aabcff H=#b5ebe2ff
+grid 3 3
+...SSS....
+..SMMMS...
+.SMMHMMS..
+SMMHHHMMS.
+SMMMHMMMS.
+.SMMMMMS..
+..SMMMS...
+...SSS....
+
+read 0 0 16 16

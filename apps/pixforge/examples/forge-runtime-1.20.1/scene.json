@@ -1,0 +1,1036 @@
+{
+  "schema": "pixelforge.scene-animation/v2",
+  "seed": 19,
+  "target": {
+    "loader": "forge",
+    "minecraft": "1.20.1"
+  },
+  "initial_state": "idle",
+  "states": [
+    {
+      "id": "idle",
+      "label": "待机",
+      "next": null,
+      "schema": "pixelforge.scene-animation/v2",
+      "duration_ms": 1600,
+      "loop": true,
+      "seed": 19,
+      "target": {
+        "loader": "forge",
+        "minecraft": "1.20.1"
+      },
+      "transforms": [
+        {
+          "id": "rotor",
+          "type": "rotate",
+          "elements": [
+            1
+          ],
+          "pivot": [
+            8,
+            10,
+            8
+          ],
+          "phase_deg": 0,
+          "entry": "relative",
+          "keyframes": [
+            {
+              "time_ms": 0,
+              "value": 0,
+              "easing": "ease_out"
+            },
+            {
+              "time_ms": 1600,
+              "value": 0,
+              "easing": "linear"
+            }
+          ],
+          "axis": [
+            0,
+            1,
+            0
+          ]
+        },
+        {
+          "id": "hover",
+          "type": "translate",
+          "elements": [
+            2
+          ],
+          "pivot": [
+            8,
+            8,
+            8
+          ],
+          "phase_deg": 0,
+          "entry": "from_current",
+          "keyframes": [
+            {
+              "time_ms": 0,
+              "value": [
+                0,
+                0,
+                0
+              ],
+              "easing": "smooth"
+            },
+            {
+              "time_ms": 400,
+              "value": [
+                0,
+                0,
+                0
+              ],
+              "easing": "linear"
+            },
+            {
+              "time_ms": 1600,
+              "value": [
+                0,
+                0,
+                0
+              ],
+              "easing": "linear"
+            }
+          ]
+        },
+        {
+          "id": "pulse",
+          "type": "scale",
+          "elements": [
+            2
+          ],
+          "pivot": [
+            8,
+            7,
+            8
+          ],
+          "phase_deg": 0,
+          "entry": "from_current",
+          "keyframes": [
+            {
+              "time_ms": 0,
+              "value": [
+                1,
+                1,
+                1
+              ],
+              "easing": "smooth"
+            },
+            {
+              "time_ms": 400,
+              "value": [
+                1,
+                1,
+                1
+              ],
+              "easing": "linear"
+            },
+            {
+              "time_ms": 1600,
+              "value": [
+                1,
+                1,
+                1
+              ],
+              "easing": "linear"
+            }
+          ]
+        }
+      ],
+      "emitters": [
+        {
+          "id": "water",
+          "position": [
+            14,
+            10,
+            8
+          ],
+          "direction": [
+            0.9284766908852592,
+            0.37139067635410367,
+            0.0
+          ],
+          "spread": [
+            0.2,
+            0.2,
+            0.2
+          ],
+          "speed": 4,
+          "gravity": [
+            0,
+            -12,
+            0
+          ],
+          "lifetime_ms": 900,
+          "count_per_cycle": 64,
+          "size": [
+            0.55,
+            0.15
+          ],
+          "color": [
+            [
+              80,
+              180,
+              255,
+              230
+            ],
+            [
+              90,
+              180,
+              255,
+              0
+            ]
+          ],
+          "blend": "alpha",
+          "anchor_element": 1,
+          "emission": [
+            {
+              "time_ms": 0,
+              "value": 0,
+              "easing": "linear"
+            },
+            {
+              "time_ms": 1600,
+              "value": 0,
+              "easing": "linear"
+            }
+          ]
+        },
+        {
+          "id": "energy",
+          "position": [
+            8,
+            9,
+            8
+          ],
+          "direction": [
+            0,
+            1,
+            0
+          ],
+          "spread": [
+            0.6,
+            0.3,
+            0.6
+          ],
+          "speed": 2,
+          "gravity": [
+            0,
+            0,
+            0
+          ],
+          "lifetime_ms": 1200,
+          "count_per_cycle": 26,
+          "size": [
+            0.2,
+            0.05
+          ],
+          "color": [
+            [
+              140,
+              255,
+              180,
+              230
+            ],
+            [
+              80,
+              240,
+              130,
+              0
+            ]
+          ],
+          "blend": "additive",
+          "anchor_element": null,
+          "emission": [
+            {
+              "time_ms": 0,
+              "value": 0,
+              "easing": "linear"
+            },
+            {
+              "time_ms": 1600,
+              "value": 0,
+              "easing": "linear"
+            }
+          ]
+        }
+      ],
+      "texture": {
+        "mode": "hold",
+        "frame": 0
+      }
+    },
+    {
+      "id": "starting",
+      "label": "启动",
+      "next": "working",
+      "schema": "pixelforge.scene-animation/v2",
+      "duration_ms": 1600,
+      "loop": false,
+      "seed": 100022,
+      "target": {
+        "loader": "forge",
+        "minecraft": "1.20.1"
+      },
+      "transforms": [
+        {
+          "id": "rotor",
+          "type": "rotate",
+          "elements": [
+            1
+          ],
+          "pivot": [
+            8,
+            10,
+            8
+          ],
+          "phase_deg": 0,
+          "entry": "relative",
+          "keyframes": [
+            {
+              "time_ms": 0,
+              "value": 0,
+              "easing": "ease_in"
+            },
+            {
+              "time_ms": 1600,
+              "value": 72,
+              "easing": "linear"
+            }
+          ],
+          "axis": [
+            0,
+            1,
+            0
+          ]
+        },
+        {
+          "id": "hover",
+          "type": "translate",
+          "elements": [
+            2
+          ],
+          "pivot": [
+            8,
+            8,
+            8
+          ],
+          "phase_deg": 0,
+          "entry": "from_current",
+          "keyframes": [
+            {
+              "time_ms": 0,
+              "value": [
+                0,
+                0,
+                0
+              ],
+              "easing": "smooth"
+            },
+            {
+              "time_ms": 900,
+              "value": [
+                0,
+                0.4,
+                0
+              ],
+              "easing": "smooth"
+            },
+            {
+              "time_ms": 1600,
+              "value": [
+                0,
+                0,
+                0
+              ],
+              "easing": "linear"
+            }
+          ]
+        },
+        {
+          "id": "pulse",
+          "type": "scale",
+          "elements": [
+            2
+          ],
+          "pivot": [
+            8,
+            7,
+            8
+          ],
+          "phase_deg": 0,
+          "entry": "from_current",
+          "keyframes": [
+            {
+              "time_ms": 0,
+              "value": [
+                1,
+                1,
+                1
+              ],
+              "easing": "smooth"
+            },
+            {
+              "time_ms": 900,
+              "value": [
+                1.1,
+                1.1,
+                1.1
+              ],
+              "easing": "smooth"
+            },
+            {
+              "time_ms": 1600,
+              "value": [
+                1,
+                1,
+                1
+              ],
+              "easing": "linear"
+            }
+          ]
+        }
+      ],
+      "emitters": [
+        {
+          "id": "water",
+          "position": [
+            14,
+            10,
+            8
+          ],
+          "direction": [
+            0.9284766908852592,
+            0.37139067635410367,
+            0.0
+          ],
+          "spread": [
+            0.2,
+            0.2,
+            0.2
+          ],
+          "speed": 4,
+          "gravity": [
+            0,
+            -12,
+            0
+          ],
+          "lifetime_ms": 900,
+          "count_per_cycle": 64,
+          "size": [
+            0.55,
+            0.15
+          ],
+          "color": [
+            [
+              80,
+              180,
+              255,
+              230
+            ],
+            [
+              90,
+              180,
+              255,
+              0
+            ]
+          ],
+          "blend": "alpha",
+          "anchor_element": 1,
+          "emission": [
+            {
+              "time_ms": 0,
+              "value": 0,
+              "easing": "smooth"
+            },
+            {
+              "time_ms": 1000,
+              "value": 1,
+              "easing": "linear"
+            },
+            {
+              "time_ms": 1600,
+              "value": 1,
+              "easing": "linear"
+            }
+          ]
+        },
+        {
+          "id": "energy",
+          "position": [
+            8,
+            9,
+            8
+          ],
+          "direction": [
+            0,
+            1,
+            0
+          ],
+          "spread": [
+            0.6,
+            0.3,
+            0.6
+          ],
+          "speed": 2,
+          "gravity": [
+            0,
+            0,
+            0
+          ],
+          "lifetime_ms": 1200,
+          "count_per_cycle": 26,
+          "size": [
+            0.2,
+            0.05
+          ],
+          "color": [
+            [
+              140,
+              255,
+              180,
+              230
+            ],
+            [
+              80,
+              240,
+              130,
+              0
+            ]
+          ],
+          "blend": "additive",
+          "anchor_element": null,
+          "emission": [
+            {
+              "time_ms": 0,
+              "value": 0,
+              "easing": "smooth"
+            },
+            {
+              "time_ms": 1000,
+              "value": 1,
+              "easing": "linear"
+            },
+            {
+              "time_ms": 1600,
+              "value": 1,
+              "easing": "linear"
+            }
+          ]
+        }
+      ],
+      "texture": {
+        "mode": "play",
+        "speed": 1
+      }
+    },
+    {
+      "id": "working",
+      "label": "运行",
+      "next": null,
+      "schema": "pixelforge.scene-animation/v2",
+      "duration_ms": 4000,
+      "loop": true,
+      "seed": 200025,
+      "target": {
+        "loader": "forge",
+        "minecraft": "1.20.1"
+      },
+      "transforms": [
+        {
+          "id": "rotor",
+          "type": "rotate",
+          "elements": [
+            1
+          ],
+          "pivot": [
+            8,
+            10,
+            8
+          ],
+          "phase_deg": 0,
+          "entry": "relative",
+          "axis": [
+            0,
+            1,
+            0
+          ],
+          "turns": 1
+        },
+        {
+          "id": "hover",
+          "type": "translate",
+          "elements": [
+            2
+          ],
+          "pivot": [
+            8,
+            8,
+            8
+          ],
+          "phase_deg": 0,
+          "entry": "absolute",
+          "amplitude": [
+            0,
+            1,
+            0
+          ],
+          "cycles": 1
+        },
+        {
+          "id": "pulse",
+          "type": "scale",
+          "elements": [
+            2
+          ],
+          "pivot": [
+            8,
+            7,
+            8
+          ],
+          "phase_deg": 0,
+          "entry": "absolute",
+          "amplitude": [
+            0.15,
+            0.15,
+            0.15
+          ],
+          "cycles": 1
+        }
+      ],
+      "emitters": [
+        {
+          "id": "water",
+          "position": [
+            14,
+            10,
+            8
+          ],
+          "direction": [
+            0.9284766908852592,
+            0.37139067635410367,
+            0.0
+          ],
+          "spread": [
+            0.2,
+            0.2,
+            0.2
+          ],
+          "speed": 4,
+          "gravity": [
+            0,
+            -12,
+            0
+          ],
+          "lifetime_ms": 900,
+          "count_per_cycle": 160,
+          "size": [
+            0.55,
+            0.15
+          ],
+          "color": [
+            [
+              80,
+              180,
+              255,
+              230
+            ],
+            [
+              90,
+              180,
+              255,
+              0
+            ]
+          ],
+          "blend": "alpha",
+          "anchor_element": 1,
+          "emission": [
+            {
+              "time_ms": 0,
+              "value": 1,
+              "easing": "linear"
+            },
+            {
+              "time_ms": 4000,
+              "value": 1,
+              "easing": "linear"
+            }
+          ]
+        },
+        {
+          "id": "energy",
+          "position": [
+            8,
+            9,
+            8
+          ],
+          "direction": [
+            0,
+            1,
+            0
+          ],
+          "spread": [
+            0.6,
+            0.3,
+            0.6
+          ],
+          "speed": 2,
+          "gravity": [
+            0,
+            0,
+            0
+          ],
+          "lifetime_ms": 1200,
+          "count_per_cycle": 64,
+          "size": [
+            0.2,
+            0.05
+          ],
+          "color": [
+            [
+              140,
+              255,
+              180,
+              230
+            ],
+            [
+              80,
+              240,
+              130,
+              0
+            ]
+          ],
+          "blend": "additive",
+          "anchor_element": null,
+          "emission": [
+            {
+              "time_ms": 0,
+              "value": 1,
+              "easing": "linear"
+            },
+            {
+              "time_ms": 4000,
+              "value": 1,
+              "easing": "linear"
+            }
+          ]
+        }
+      ],
+      "texture": {
+        "mode": "play",
+        "speed": 1
+      }
+    },
+    {
+      "id": "stopping",
+      "label": "停机",
+      "next": "idle",
+      "schema": "pixelforge.scene-animation/v2",
+      "duration_ms": 1600,
+      "loop": false,
+      "seed": 300028,
+      "target": {
+        "loader": "forge",
+        "minecraft": "1.20.1"
+      },
+      "transforms": [
+        {
+          "id": "rotor",
+          "type": "rotate",
+          "elements": [
+            1
+          ],
+          "pivot": [
+            8,
+            10,
+            8
+          ],
+          "phase_deg": 0,
+          "entry": "relative",
+          "keyframes": [
+            {
+              "time_ms": 0,
+              "value": 0,
+              "easing": "ease_out"
+            },
+            {
+              "time_ms": 1600,
+              "value": 72,
+              "easing": "linear"
+            }
+          ],
+          "axis": [
+            0,
+            1,
+            0
+          ]
+        },
+        {
+          "id": "hover",
+          "type": "translate",
+          "elements": [
+            2
+          ],
+          "pivot": [
+            8,
+            8,
+            8
+          ],
+          "phase_deg": 0,
+          "entry": "from_current",
+          "keyframes": [
+            {
+              "time_ms": 0,
+              "value": [
+                0,
+                0,
+                0
+              ],
+              "easing": "smooth"
+            },
+            {
+              "time_ms": 400,
+              "value": [
+                0,
+                0,
+                0
+              ],
+              "easing": "linear"
+            },
+            {
+              "time_ms": 1600,
+              "value": [
+                0,
+                0,
+                0
+              ],
+              "easing": "linear"
+            }
+          ]
+        },
+        {
+          "id": "pulse",
+          "type": "scale",
+          "elements": [
+            2
+          ],
+          "pivot": [
+            8,
+            7,
+            8
+          ],
+          "phase_deg": 0,
+          "entry": "from_current",
+          "keyframes": [
+            {
+              "time_ms": 0,
+              "value": [
+                1,
+                1,
+                1
+              ],
+              "easing": "smooth"
+            },
+            {
+              "time_ms": 400,
+              "value": [
+                1,
+                1,
+                1
+              ],
+              "easing": "linear"
+            },
+            {
+              "time_ms": 1600,
+              "value": [
+                1,
+                1,
+                1
+              ],
+              "easing": "linear"
+            }
+          ]
+        }
+      ],
+      "emitters": [
+        {
+          "id": "water",
+          "position": [
+            14,
+            10,
+            8
+          ],
+          "direction": [
+            0.9284766908852592,
+            0.37139067635410367,
+            0.0
+          ],
+          "spread": [
+            0.2,
+            0.2,
+            0.2
+          ],
+          "speed": 4,
+          "gravity": [
+            0,
+            -12,
+            0
+          ],
+          "lifetime_ms": 900,
+          "count_per_cycle": 64,
+          "size": [
+            0.55,
+            0.15
+          ],
+          "color": [
+            [
+              80,
+              180,
+              255,
+              230
+            ],
+            [
+              90,
+              180,
+              255,
+              0
+            ]
+          ],
+          "blend": "alpha",
+          "anchor_element": 1,
+          "emission": [
+            {
+              "time_ms": 0,
+              "value": 1,
+              "easing": "smooth"
+            },
+            {
+              "time_ms": 400,
+              "value": 0,
+              "easing": "linear"
+            },
+            {
+              "time_ms": 1600,
+              "value": 0,
+              "easing": "linear"
+            }
+          ]
+        },
+        {
+          "id": "energy",
+          "position": [
+            8,
+            9,
+            8
+          ],
+          "direction": [
+            0,
+            1,
+            0
+          ],
+          "spread": [
+            0.6,
+            0.3,
+            0.6
+          ],
+          "speed": 2,
+          "gravity": [
+            0,
+            0,
+            0
+          ],
+          "lifetime_ms": 1200,
+          "count_per_cycle": 26,
+          "size": [
+            0.2,
+            0.05
+          ],
+          "color": [
+            [
+              140,
+              255,
+              180,
+              230
+            ],
+            [
+              80,
+              240,
+              130,
+              0
+            ]
+          ],
+          "blend": "additive",
+          "anchor_element": null,
+          "emission": [
+            {
+              "time_ms": 0,
+              "value": 1,
+              "easing": "smooth"
+            },
+            {
+              "time_ms": 400,
+              "value": 0,
+              "easing": "linear"
+            },
+            {
+              "time_ms": 1600,
+              "value": 0,
+              "easing": "linear"
+            }
+          ]
+        }
+      ],
+      "texture": {
+        "mode": "play",
+        "speed": 0.5
+      }
+    }
+  ],
+  "transitions": [
+    {
+      "event": "start",
+      "from": "idle",
+      "to": "starting"
+    },
+    {
+      "event": "stop",
+      "from": "starting",
+      "to": "stopping"
+    },
+    {
+      "event": "stop",
+      "from": "working",
+      "to": "stopping"
+    },
+    {
+      "event": "start",
+      "from": "stopping",
+      "to": "starting"
+    }
+  ],
+  "preview_sequence": [
+    {
+      "duration_ms": 1600,
+      "state": "idle"
+    },
+    {
+      "duration_ms": 1600,
+      "state": "starting"
+    },
+    {
+      "duration_ms": 4000,
+      "state": "working"
+    },
+    {
+      "duration_ms": 1600,
+      "state": "stopping"
+    },
+    {
+      "duration_ms": 800,
+      "state": "idle"
+    }
+  ],
+  "duration_ms": 9600,
+  "loop": false
+}

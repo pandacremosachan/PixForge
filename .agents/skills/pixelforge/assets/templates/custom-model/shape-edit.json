@@ -1,0 +1,7 @@
+[
+  {
+    "op": "mode",
+    "target": "selection",
+    "mode": "copy"
+  }
+]

@@ -1,0 +1,192 @@
+{
+  "multipart": [
+    {
+      "when": {
+        "facing": "north"
+      },
+      "apply": {
+        "model": "pixforge_preview_demo:block/frame",
+        "y": 0,
+        "uvlock": true
+      }
+    },
+    {
+      "when": {
+        "facing": "north"
+      },
+      "apply": {
+        "model": "pixforge_preview_demo:block/glass",
+        "y": 0,
+        "uvlock": true
+      }
+    },
+    {
+      "when": {
+        "facing": "north"
+      },
+      "apply": {
+        "model": "pixforge_preview_demo:block/leaves",
+        "y": 0,
+        "uvlock": true
+      }
+    },
+    {
+      "when": {
+        "AND": [
+          {
+            "facing": "north"
+          },
+          {
+            "active": "true"
+          }
+        ]
+      },
+      "apply": {
+        "model": "pixforge_preview_demo:block/glow",
+        "y": 0,
+        "uvlock": true
+      }
+    },
+    {
+      "when": {
+        "facing": "east"
+      },
+      "apply": {
+        "model": "pixforge_preview_demo:block/frame",
+        "y": 90,
+        "uvlock": true
+      }
+    },
+    {
+      "when": {
+        "facing": "east"
+      },
+      "apply": {
+        "model": "pixforge_preview_demo:block/glass",
+        "y": 90,
+        "uvlock": true
+      }
+    },
+    {
+      "when": {
+        "facing": "east"
+      },
+      "apply": {
+        "model": "pixforge_preview_demo:block/leaves",
+        "y": 90,
+        "uvlock": true
+      }
+    },
+    {
+      "when": {
+        "AND": [
+          {
+            "facing": "east"
+          },
+          {
+            "active": "true"
+          }
+        ]
+      },
+      "apply": {
+        "model": "pixforge_preview_demo:block/glow",
+        "y": 90,
+        "uvlock": true
+      }
+    },
+    {
+      "when": {
+        "facing": "south"
+      },
+      "apply": {
+        "model": "pixforge_preview_demo:block/frame",
+        "y": 180,
+        "uvlock": true
+      }
+    },
+    {
+      "when": {
+        "facing": "south"
+      },
+      "apply": {
+        "model": "pixforge_preview_demo:block/glass",
+        "y": 180,
+        "uvlock": true
+      }
+    },
+    {
+      "when": {
+        "facing": "south"
+      },
+      "apply": {
+        "model": "pixforge_preview_demo:block/leaves",
+        "y": 180,
+        "uvlock": true
+      }
+    },
+    {
+      "when": {
+        "AND": [
+          {
+            "facing": "south"
+          },
+          {
+            "active": "true"
+          }
+        ]
+      },
+      "apply": {
+        "model": "pixforge_preview_demo:block/glow",
+        "y": 180,
+        "uvlock": true
+      }
+    },
+    {
+      "when": {
+        "facing": "west"
+      },
+      "apply": {
+        "model": "pixforge_preview_demo:block/frame",
+        "y": 270,
+        "uvlock": true
+      }
+    },
+    {
+      "when": {
+        "facing": "west"
+      },
+      "apply": {
+        "model": "pixforge_preview_demo:block/glass",
+        "y": 270,
+        "uvlock": true
+      }
+    },
+    {
+      "when": {
+        "facing": "west"
+      },
+      "apply": {
+        "model": "pixforge_preview_demo:block/leaves",
+        "y": 270,
+        "uvlock": true
+      }
+    },
+    {
+      "when": {
+        "AND": [
+          {
+            "facing": "west"
+          },
+          {
+            "active": "true"
+          }
+        ]
+      },
+      "apply": {
+        "model": "pixforge_preview_demo:block/glow",
+        "y": 270,
+        "uvlock": true
+      }
+    }
+  ]
+}

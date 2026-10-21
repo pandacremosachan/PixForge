@@ -1,0 +1,46 @@
+{
+  "parent": "pixforge_preview_demo:block/display_base",
+  "render_type": "minecraft:cutout",
+  "textures": {
+    "glow": "pixforge_preview_demo:block/glow"
+  },
+  "elements": [
+    {
+      "from": [
+        4,
+        3,
+        3
+      ],
+      "to": [
+        12,
+        4,
+        4
+      ],
+      "faces": {
+        "north": {
+          "texture": "#glow"
+        },
+        "south": {
+          "texture": "#glow"
+        },
+        "east": {
+          "texture": "#glow"
+        },
+        "west": {
+          "texture": "#glow"
+        },
+        "up": {
+          "texture": "#glow"
+        },
+        "down": {
+          "texture": "#glow"
+        }
+      },
+      "shade": false,
+      "forge_data": {
+        "block_light": 15,
+        "ambient_occlusion": false
+      }
+    }
+  ]
+}

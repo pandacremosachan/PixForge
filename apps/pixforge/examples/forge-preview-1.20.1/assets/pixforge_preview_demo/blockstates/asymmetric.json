@@ -1,0 +1,33 @@
+{
+  "variants": {
+    "facing=north": [
+      {
+        "model": "pixforge_preview_demo:block/asymmetric",
+        "y": 0,
+        "uvlock": true,
+        "weight": 3
+      },
+      {
+        "model": "pixforge_preview_demo:block/asymmetric_alt",
+        "y": 0,
+        "uvlock": false,
+        "weight": 1
+      }
+    ],
+    "facing=east": {
+      "model": "pixforge_preview_demo:block/asymmetric",
+      "y": 90,
+      "uvlock": true
+    },
+    "facing=south": {
+      "model": "pixforge_preview_demo:block/asymmetric",
+      "y": 180,
+      "uvlock": true
+    },
+    "facing=west": {
+      "model": "pixforge_preview_demo:block/asymmetric",
+      "y": 270,
+      "uvlock": true
+    }
+  }
+}

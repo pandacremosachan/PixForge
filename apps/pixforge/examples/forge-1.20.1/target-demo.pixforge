@@ -1,0 +1,189 @@
+{
+  "active": "main",
+  "h": 16,
+  "layers": [
+    {
+      "data": "eIOm/3iDpv94g6b/eIOm/3iDpv94g6b/eIOm/3iDpv94g6b/eIOm/3iDpv94g6b/eIOm/3iDpv94g6b/eIOm/3iDpv9RWHb/UVh2/1FYdv9RWHb/UVh2/1FYdv9RWHb/UVh2/1FYdv9RWHb/UVh2/1FYdv9RWHb/UVh2/3iDpv94g6b/UVh2/zQ4T/+ot87/qLfO/6i3zv+ot87/qLfO/6i3zv+ot87/qLfO/6i3zv+ot87/UVh2/1FYdv94g6b/eIOm/1FYdv+ot87/NDhP/zQ4T/80OE//NDhP/zQ4T/80OE//NDhP/zQ4T/80OE//qLfO/1FYdv9RWHb/eIOm/3iDpv9RWHb/qLfO/zQ4T/80OE//UVh2/1FYdv9RWHb/UVh2/zQ4T/80OE//NDhP/6i3zv9RWHb/UVh2/3iDpv94g6b/UVh2/6i3zv80OE//NDhP/1FYdv/xrEL/8axC/1FYdv80OE//NDhP/zQ4T/+ot87/UVh2/1FYdv94g6b/eIOm/1FYdv+ot87/NDhP/zQ4T/9RWHb/8axC//GsQv9RWHb/NDhP/zQ4T/80OE//qLfO/1FYdv9RWHb/eIOm/3iDpv9RWHb/qLfO/zQ4T/80OE//UVh2/1FYdv9RWHb/UVh2/zQ4T/80OE//NDhP/6i3zv9RWHb/UVh2/3iDpv94g6b/UVh2/6i3zv80OE//NDhP/zQ4T/80OE//NDhP/zQ4T/80OE//NDhP/zQ4T/+ot87/UVh2/1FYdv94g6b/eIOm/1FYdv+ot87/NDhP/zQ4T/80OE//NDhP/zQ4T/80OE//NDhP/zQ4T/80OE//qLfO/1FYdv9RWHb/eIOm/3iDpv9RWHb/qLfO/zQ4T/80OE//NDhP/zQ4T/80OE//NDhP/zQ4T/80OE//NDhP/6i3zv9RWHb/UVh2/3iDpv94g6b/UVh2/6i3zv80OE//NDhP/zQ4T/80OE//NDhP/zQ4T/80OE//NDhP/zQ4T/+ot87/UVh2/1FYdv94g6b/eIOm/1FYdv+ot87/NDhP/zQ4T/80OE//NDhP/zQ4T/80OE//NDhP/zQ4T/80OE//qLfO/1FYdv9RWHb/eIOm/3iDpv9RWHb/NDhP/6i3zv+ot87/qLfO/6i3zv+ot87/qLfO/6i3zv+ot87/qLfO/6i3zv9RWHb/UVh2/3iDpv94g6b/UVh2/1FYdv9RWHb/UVh2/1FYdv9RWHb/UVh2/1FYdv9RWHb/UVh2/1FYdv9RWHb/UVh2/1FYdv94g6b/eIOm/3iDpv94g6b/eIOm/3iDpv94g6b/eIOm/3iDpv94g6b/eIOm/3iDpv94g6b/eIOm/3iDpv94g6b/eIOm/w==",
+      "name": "main",
+      "visible": true
+    }
+  ],
+  "mirror": false,
+  "palette": {
+    "A": [
+      52,
+      56,
+      79,
+      255
+    ],
+    "B": [
+      81,
+      88,
+      118,
+      255
+    ],
+    "C": [
+      120,
+      131,
+      166,
+      255
+    ],
+    "D": [
+      168,
+      183,
+      206,
+      255
+    ],
+    "E": [
+      241,
+      172,
+      66,
+      255
+    ]
+  },
+  "pixelforge_desktop": {
+    "animation": {
+      "frame_size": [
+        16,
+        16
+      ],
+      "interpolation": "none",
+      "loop": true,
+      "provenance": "编辑器预览设置；尚未核对游戏元数据",
+      "rectangles": [
+        [
+          0,
+          0,
+          16,
+          16
+        ]
+      ],
+      "steps": [
+        {
+          "duration_ms": 100,
+          "frame": 0
+        }
+      ]
+    },
+    "animation_source": null,
+    "approval": null,
+    "document_id": "dfdcb3666eac4df9ae2df48b15b2e903",
+    "minecraft_project": {
+      "binding": {
+        "kind": "block",
+        "path": "resource_demo",
+        "texture": "block/resource_demo"
+      },
+      "description": "PixForge Forge 1.20.1 resource pipeline example",
+      "entries": [],
+      "namespace": "pixforge_demo",
+      "profile": "forge-1.20.1",
+      "schema": "pixforge.minecraft-project/v1",
+      "sources": []
+    },
+    "notes": [],
+    "schema": "pixelforge.desktop/v2",
+    "shapes": {
+      "base": [
+        {
+          "from": [
+            0,
+            0,
+            0
+          ],
+          "id": "model_000",
+          "to": [
+            16,
+            16,
+            16
+          ]
+        }
+      ],
+      "collision": null,
+      "model": {
+        "elements": [
+          {
+            "faces": {
+              "down": {
+                "texture": "#atlas",
+                "uv": [
+                  0,
+                  0,
+                  16,
+                  16
+                ]
+              },
+              "east": {
+                "texture": "#atlas",
+                "uv": [
+                  0,
+                  0,
+                  16,
+                  16
+                ]
+              },
+              "north": {
+                "texture": "#atlas",
+                "uv": [
+                  0,
+                  0,
+                  16,
+                  16
+                ]
+              },
+              "south": {
+                "texture": "#atlas",
+                "uv": [
+                  0,
+                  0,
+                  16,
+                  16
+                ]
+              },
+              "up": {
+                "texture": "#atlas",
+                "uv": [
+                  0,
+                  0,
+                  16,
+                  16
+                ]
+              },
+              "west": {
+                "texture": "#atlas",
+                "uv": [
+                  0,
+                  0,
+                  16,
+                  16
+                ]
+              }
+            },
+            "from": [
+              0,
+              0,
+              0
+            ],
+            "name": "六面方块",
+            "to": [
+              16,
+              16,
+              16
+            ]
+          }
+        ],
+        "texture_size": [
+          16,
+          16
+        ],
+        "textures": {
+          "atlas": "pixforge:block/new_texture",
+          "particle": "#atlas"
+        }
+      },
+      "schema": "pixelforge.shapes/v1",
+      "selection": null
+    }
+  },
+  "w": 16
+}

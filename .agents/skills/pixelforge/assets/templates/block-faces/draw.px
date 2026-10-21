@@ -1,0 +1,19 @@
+# Layout: up,north,east / south,west,down. Coordinates are inclusive.
+rect 0 0 15 15 #3a414bff
+rect 1 1 14 14 #9aa7b4ff
+rect 4 4 11 11 #3e8e99ff
+rect 16 0 31 15 #3a414bff
+rect 17 1 30 14 #68798cff
+rect 20 4 27 11 #3e8e99ff
+rect 32 0 47 15 #3a414bff
+rect 33 1 46 14 #526175ff
+rect 36 4 43 11 #3e8e99ff
+rect 0 16 15 31 #3a414bff
+rect 1 17 14 30 #485369ff
+rect 4 20 11 27 #3e8e99ff
+rect 16 16 31 31 #3a414bff
+rect 17 17 30 30 #7d8b9aff
+rect 20 20 27 27 #3e8e99ff
+rect 32 16 47 31 #3a414bff
+rect 33 17 46 30 #36404fff
+rect 36 20 43 27 #3e8e99ff

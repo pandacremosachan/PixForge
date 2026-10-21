@@ -1,0 +1,23 @@
+{
+  "schema": "pixforge.icon-design/v1",
+  "name": "PixForge · Voxel Spark",
+  "concept": "紫色体素方块代表像素绘制与模型编辑；橙色方块火花呼应 Forge。",
+  "method": "OpenAI built-in image_gen; alpha preserved; Pillow used only for size/format conversion and inspection sheet",
+  "original_size": [
+    1254,
+    1254
+  ],
+  "ico_sizes": [
+    16,
+    20,
+    24,
+    32,
+    40,
+    48,
+    64,
+    96,
+    128,
+    256
+  ],
+  "prompt": "Use case: logo-brand. Asset type: final production Windows desktop application icon for PixForge, a pixel art, block-model and animation editor. Design one single polished app icon, square composition, with genuine alpha transparency outside the icon; not a mockup, not a presentation sheet. Subject: a bold isometric voxel cube being forged, assembled from a small number of large clean pixel blocks. The main cube has luminous lavender and amethyst faces, with a subtle cool blue upper face, strong clear silhouette; one small bright warm orange square on the cube's upper edge and two separated orange square sparks rising diagonally to the upper right evoke the word Forge. Set this centered symbol on a dark graphite rounded-square tile with restrained dimensional depth and an elegantly rounded silhouette; keep generous 12% transparent outer padding. Professional creative software identity matching a charcoal and lavender editor interface. Crisp geometric planes, visually precise pixel-inspired construction, beautifully balanced negative space, minimal detail, soft restrained material lighting, high contrast and immediately legible at 24px. No letters, no wordmark, no numbers, no hammer, no tools, no scenery, no extra objects, no border or drop shadow outside the tile, no watermark. Produce a single centered 1024x1024 icon asset with transparent background, not multiple variants."
+}

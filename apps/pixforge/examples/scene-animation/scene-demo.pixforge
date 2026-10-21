@@ -1,0 +1,464 @@
+{
+  "active": "main",
+  "h": 16,
+  "layers": [
+    {
+      "data": "X7Oi/1+zov9fs6L/X7Oi/1+zov9fs6L/X7Oi/1+zov8nfWr/J31q/yd9av8nfWr/J31q/yd9av8nfWr/J31q/1+zov9fs6L/X7Oi/1+zov9fs6L/X7Oi/1+zov9fs6L/J31q/yd9av8nfWr/J31q/yd9av8nfWr/J31q/yd9av9fs6L/X7Oi/1+zov9fs6L/X7Oi/1+zov9fs6L/X7Oi/yd9av8nfWr/J31q/yd9av8nfWr/J31q/yd9av8nfWr/X7Oi/1+zov9fs6L/X7Oi/1+zov9fs6L/X7Oi/1+zov8nfWr/J31q/yd9av8nfWr/J31q/yd9av8nfWr/J31q/1+zov9fs6L/X7Oi/1+zov9fs6L/X7Oi/1+zov9fs6L/J31q/yd9av8nfWr/J31q/yd9av8nfWr/J31q/yd9av9fs6L/X7Oi/1+zov9fs6L/X7Oi/1+zov9fs6L/X7Oi/yd9av8nfWr/J31q/yd9av8nfWr/J31q/yd9av8nfWr/X7Oi/1+zov9fs6L/X7Oi/1+zov9fs6L/X7Oi/1+zov8nfWr/J31q/yd9av8nfWr/J31q/yd9av8nfWr/J31q/1+zov9fs6L/X7Oi/1+zov9fs6L/X7Oi/1+zov9fs6L/J31q/yd9av8nfWr/J31q/yd9av8nfWr/J31q/yd9av8nfWr/J31q/yd9av8nfWr/J31q/yd9av8nfWr/J31q/7TRov+00aL/tNGi/7TRov+00aL/tNGi/7TRov+00aL/J31q/yd9av8nfWr/J31q/yd9av8nfWr/J31q/yd9av+00aL/tNGi/7TRov+00aL/tNGi/7TRov+00aL/tNGi/yd9av8nfWr/J31q/yd9av8nfWr/J31q/yd9av8nfWr/tNGi/7TRov+00aL/tNGi/7TRov+00aL/tNGi/7TRov8nfWr/J31q/yd9av8nfWr/J31q/yd9av8nfWr/J31q/7TRov+00aL/tNGi/7TRov+00aL/tNGi/7TRov+00aL/J31q/yd9av8nfWr/J31q/yd9av8nfWr/J31q/yd9av+00aL/tNGi/7TRov+00aL/tNGi/7TRov+00aL/tNGi/yd9av8nfWr/J31q/yd9av8nfWr/J31q/yd9av8nfWr/tNGi/7TRov+00aL/tNGi/7TRov+00aL/tNGi/7TRov8nfWr/J31q/yd9av8nfWr/J31q/yd9av8nfWr/J31q/7TRov+00aL/tNGi/7TRov+00aL/tNGi/7TRov+00aL/J31q/yd9av8nfWr/J31q/yd9av8nfWr/J31q/yd9av+00aL/tNGi/7TRov+00aL/tNGi/7TRov+00aL/tNGi/w==",
+      "name": "main",
+      "visible": true
+    }
+  ],
+  "mirror": false,
+  "palette": {},
+  "pixelforge_desktop": {
+    "animation": {
+      "frame_size": [
+        16,
+        16
+      ],
+      "interpolation": "none",
+      "loop": true,
+      "provenance": "编辑器预览设置；尚未核对游戏元数据",
+      "rectangles": [
+        [
+          0,
+          0,
+          16,
+          16
+        ]
+      ],
+      "steps": [
+        {
+          "duration_ms": 100,
+          "frame": 0
+        }
+      ]
+    },
+    "animation_source": null,
+    "approval": null,
+    "document_id": "346add128ce44ba8aeb2ddbe46e22593",
+    "notes": [],
+    "scene_animation": {
+      "duration_ms": 4000,
+      "emitters": [
+        {
+          "anchor_element": 1,
+          "blend": "alpha",
+          "color": [
+            [
+              80,
+              180,
+              255,
+              230
+            ],
+            [
+              90,
+              180,
+              255,
+              0
+            ]
+          ],
+          "count_per_cycle": 160,
+          "direction": [
+            0.9284766908852592,
+            0.37139067635410367,
+            0.0
+          ],
+          "gravity": [
+            0,
+            -12,
+            0
+          ],
+          "id": "water",
+          "lifetime_ms": 900,
+          "position": [
+            14,
+            10,
+            8
+          ],
+          "size": [
+            0.55,
+            0.15
+          ],
+          "speed": 4,
+          "spread": [
+            0.2,
+            0.2,
+            0.2
+          ]
+        },
+        {
+          "anchor_element": null,
+          "blend": "additive",
+          "color": [
+            [
+              140,
+              255,
+              180,
+              230
+            ],
+            [
+              80,
+              240,
+              130,
+              0
+            ]
+          ],
+          "count_per_cycle": 64,
+          "direction": [
+            0,
+            1,
+            0
+          ],
+          "gravity": [
+            0,
+            0,
+            0
+          ],
+          "id": "energy",
+          "lifetime_ms": 1200,
+          "position": [
+            8,
+            9,
+            8
+          ],
+          "size": [
+            0.2,
+            0.05
+          ],
+          "speed": 2,
+          "spread": [
+            0.6,
+            0.3,
+            0.6
+          ]
+        }
+      ],
+      "loop": true,
+      "schema": "pixelforge.scene-animation/v1",
+      "seed": 19,
+      "target": {
+        "loader": "forge",
+        "minecraft": "1.20.1"
+      },
+      "transforms": [
+        {
+          "axis": [
+            0,
+            1,
+            0
+          ],
+          "elements": [
+            1
+          ],
+          "id": "rotor",
+          "phase_deg": 0,
+          "pivot": [
+            8,
+            10,
+            8
+          ],
+          "turns": 1,
+          "type": "rotate"
+        },
+        {
+          "amplitude": [
+            0,
+            1,
+            0
+          ],
+          "cycles": 1,
+          "elements": [
+            2
+          ],
+          "id": "hover",
+          "phase_deg": 0,
+          "pivot": [
+            8,
+            8,
+            8
+          ],
+          "type": "translate"
+        },
+        {
+          "amplitude": [
+            0.15,
+            0.15,
+            0.15
+          ],
+          "cycles": 1,
+          "elements": [
+            2
+          ],
+          "id": "pulse",
+          "phase_deg": 0,
+          "pivot": [
+            8,
+            7,
+            8
+          ],
+          "type": "scale"
+        }
+      ]
+    },
+    "schema": "pixelforge.desktop/v1",
+    "shapes": {
+      "base": [
+        {
+          "from": [
+            2,
+            0,
+            2
+          ],
+          "id": "model_000",
+          "to": [
+            14,
+            3,
+            14
+          ]
+        },
+        {
+          "from": [
+            2,
+            9,
+            7
+          ],
+          "id": "model_001",
+          "to": [
+            14,
+            11,
+            9
+          ]
+        },
+        {
+          "from": [
+            6,
+            5,
+            6
+          ],
+          "id": "optimized_001",
+          "to": [
+            10,
+            11,
+            10
+          ]
+        }
+      ],
+      "collision": null,
+      "model": {
+        "elements": [
+          {
+            "faces": {
+              "down": {
+                "texture": "test:atlas",
+                "uv": [
+                  0,
+                  0,
+                  16,
+                  16
+                ]
+              },
+              "east": {
+                "texture": "test:atlas",
+                "uv": [
+                  0,
+                  0,
+                  16,
+                  16
+                ]
+              },
+              "north": {
+                "texture": "test:atlas",
+                "uv": [
+                  0,
+                  0,
+                  16,
+                  16
+                ]
+              },
+              "south": {
+                "texture": "test:atlas",
+                "uv": [
+                  0,
+                  0,
+                  16,
+                  16
+                ]
+              },
+              "up": {
+                "texture": "test:atlas",
+                "uv": [
+                  0,
+                  0,
+                  16,
+                  16
+                ]
+              },
+              "west": {
+                "texture": "test:atlas",
+                "uv": [
+                  0,
+                  0,
+                  16,
+                  16
+                ]
+              }
+            },
+            "from": [
+              2,
+              0,
+              2
+            ],
+            "name": "base",
+            "to": [
+              14,
+              3,
+              14
+            ]
+          },
+          {
+            "faces": {
+              "down": {
+                "texture": "test:atlas",
+                "uv": [
+                  0,
+                  0,
+                  16,
+                  16
+                ]
+              },
+              "east": {
+                "texture": "test:atlas",
+                "uv": [
+                  0,
+                  0,
+                  16,
+                  16
+                ]
+              },
+              "north": {
+                "texture": "test:atlas",
+                "uv": [
+                  0,
+                  0,
+                  16,
+                  16
+                ]
+              },
+              "south": {
+                "texture": "test:atlas",
+                "uv": [
+                  0,
+                  0,
+                  16,
+                  16
+                ]
+              },
+              "up": {
+                "texture": "test:atlas",
+                "uv": [
+                  0,
+                  0,
+                  16,
+                  16
+                ]
+              },
+              "west": {
+                "texture": "test:atlas",
+                "uv": [
+                  0,
+                  0,
+                  16,
+                  16
+                ]
+              }
+            },
+            "from": [
+              2,
+              9,
+              7
+            ],
+            "name": "rotor",
+            "to": [
+              14,
+              11,
+              9
+            ]
+          },
+          {
+            "faces": {
+              "down": {
+                "texture": "test:atlas",
+                "uv": [
+                  0,
+                  0,
+                  16,
+                  16
+                ]
+              },
+              "east": {
+                "texture": "test:atlas",
+                "uv": [
+                  0,
+                  0,
+                  16,
+                  16
+                ]
+              },
+              "north": {
+                "texture": "test:atlas",
+                "uv": [
+                  0,
+                  0,
+                  16,
+                  16
+                ]
+              },
+              "south": {
+                "texture": "test:atlas",
+                "uv": [
+                  0,
+                  0,
+                  16,
+                  16
+                ]
+              },
+              "up": {
+                "texture": "test:atlas",
+                "uv": [
+                  0,
+                  0,
+                  16,
+                  16
+                ]
+              },
+              "west": {
+                "texture": "test:atlas",
+                "uv": [
+                  0,
+                  0,
+                  16,
+                  16
+                ]
+              }
+            },
+            "from": [
+              6,
+              5,
+              6
+            ],
+            "name": "core",
+            "to": [
+              10,
+              9,
+              10
+            ]
+          }
+        ]
+      },
+      "schema": "pixelforge.shapes/v1",
+      "selection": null
+    }
+  },
+  "w": 16
+}

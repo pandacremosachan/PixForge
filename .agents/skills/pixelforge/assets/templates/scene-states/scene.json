@@ -1,0 +1,123 @@
+{
+  "schema": "pixelforge.scene-animation/v2",
+  "seed": 19,
+  "target": {
+    "loader": "forge",
+    "minecraft": "1.20.1"
+  },
+  "initial_state": "idle",
+  "loop": true,
+  "states": [
+    {
+      "id": "idle",
+      "label": "Idle",
+      "duration_ms": 1000,
+      "loop": true,
+      "transforms": [
+        {
+          "id": "rotor",
+          "type": "rotate",
+          "elements": [
+            1
+          ],
+          "pivot": [
+            8,
+            8,
+            8
+          ],
+          "axis": [
+            0,
+            1,
+            0
+          ],
+          "entry": "relative",
+          "keyframes": [
+            {
+              "time_ms": 0,
+              "value": 0,
+              "easing": "linear"
+            },
+            {
+              "time_ms": 1000,
+              "value": 0,
+              "easing": "linear"
+            }
+          ]
+        }
+      ],
+      "emitters": [],
+      "texture": {
+        "mode": "hold"
+      }
+    },
+    {
+      "id": "active",
+      "label": "Active",
+      "duration_ms": 2000,
+      "loop": true,
+      "transforms": [
+        {
+          "id": "rotor",
+          "type": "rotate",
+          "elements": [
+            1
+          ],
+          "pivot": [
+            8,
+            8,
+            8
+          ],
+          "axis": [
+            0,
+            1,
+            0
+          ],
+          "entry": "relative",
+          "keyframes": [
+            {
+              "time_ms": 0,
+              "value": 0,
+              "easing": "linear"
+            },
+            {
+              "time_ms": 2000,
+              "value": 360,
+              "easing": "linear"
+            }
+          ]
+        }
+      ],
+      "emitters": [],
+      "texture": {
+        "mode": "play",
+        "speed": 1
+      }
+    }
+  ],
+  "transitions": [
+    {
+      "from": "idle",
+      "event": "start",
+      "to": "active"
+    },
+    {
+      "from": "active",
+      "event": "stop",
+      "to": "idle"
+    }
+  ],
+  "preview_sequence": [
+    {
+      "state": "idle",
+      "duration_ms": 1000
+    },
+    {
+      "state": "active",
+      "duration_ms": 4000
+    },
+    {
+      "state": "idle",
+      "duration_ms": 1000
+    }
+  ]
+}

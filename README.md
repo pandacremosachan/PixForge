@@ -1,5 +1,13 @@
 # PixForge
 
+[![PixForge 2.9.0](https://img.shields.io/badge/PixForge-2.9.0-2563eb?style=flat-square)](https://github.com/pandacremosachan/PixForge/releases/tag/v2.9.0)
+[![Skill 1.8.0](https://img.shields.io/badge/Skill-1.8.0-0d9488?style=flat-square)](.agents/skills/pixelforge/SKILL.md)
+[![Public API 1](https://img.shields.io/badge/Public%20API-1-7c3aed?style=flat-square)](apps/pixforge/PUBLIC_API.md)
+[![Windows x64](https://img.shields.io/badge/Platform-Windows%20x64-0078d4?style=flat-square)](https://github.com/pandacremosachan/PixForge/releases/tag/v2.9.0)
+[![CLI and MCP](https://img.shields.io/badge/Interfaces-CLI%20%2B%20MCP-475569?style=flat-square)](.agents/skills/pixelforge/references/connection.md)
+
+English | [简体中文](README.zh-CN.md)
+
 PixForge is a standalone pixel, model and animation workbench, with a separately versioned companion skill for AI agents. The application and skill communicate through public CLI/MCP interfaces and can be used independently.
 
 | Component | Version | Source and documentation |

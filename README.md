@@ -13,7 +13,7 @@ PixForge is a standalone pixel, model and animation workbench, with a separately
 Download the three packages from [Releases](https://github.com/pandacremosachan/PixForge/releases):
 
 - **PixForge-Cpp-Windows-x64.zip**: ready-to-run Windows application. Extract the complete folder and keep its private backend beside the executable. No global Python or C++ installation is required.
-- **PixForge-Cpp-源码.zip**: application source without runtimes or session data.
+- **PixForge-Cpp-Source.zip**: application source without runtimes or session data.
 - **PixForge-Skill.zip**: portable instructions, standard-library client and task templates. The skill does not contain the application or its runtime.
 
 [RELEASE_SHA256.txt](RELEASE_SHA256.txt) records the package checksums for this release.

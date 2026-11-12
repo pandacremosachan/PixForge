@@ -6,6 +6,49 @@ namespace pf {
 inline COLORREF rgb(int r,int g,int b){return RGB(r,g,b);}
 inline COLORREF rgb(Pixel p){return RGB(p[0],p[1],p[2]);}
 inline void fill(HDC dc,RECT r,COLORREF c){HBRUSH b=CreateSolidBrush(c);FillRect(dc,&r,b);DeleteObject(b);}
+// Compose in window coordinates, then present the completed dirty rectangle.
+class PaintBuffer {
+    HDC mem; HBITMAP bitmap; HGDIOBJ original;
+public:
+    PaintBuffer(HDC dst,RECT r):mem(CreateCompatibleDC(dst)),bitmap(CreateCompatibleBitmap(dst,r.right-r.left,r.bottom-r.top)),original(SelectObject(mem,bitmap)){
+        SetWindowOrgEx(mem,r.left,r.top,nullptr);SelectObject(mem,GetCurrentObject(dst,OBJ_FONT));
+    }
+    ~PaintBuffer(){SelectObject(mem,original);DeleteObject(bitmap);DeleteDC(mem);}
+    HDC dc()const{return mem;}
+    void copyTo(HDC target,RECT r)const{BitBlt(target,r.left,r.top,r.right-r.left,r.bottom-r.top,mem,r.left,r.top,SRCCOPY);}
+};
+template<class Draw> void bufferedPaint(HDC target,RECT r,Draw draw){
+    if(IsRectEmpty(&r))return;
+    PaintBuffer buffer(target,r);draw(buffer.dc());buffer.copyTo(target,r);
+}
+template<class Draw> void bufferedItem(DRAWITEMSTRUCT item,Draw draw){
+    bufferedPaint(item.hDC,item.rcItem,[&](HDC dc){item.hDC=dc;draw(item);});
+}
+
+// A combo reports its closed height, not the requested drop-down height.
+// Keep the requested bounds with the control that owns them.
+struct ControlPlacement {
+    int x=0,y=0,w=-1,h=-1;
+    void place(HWND control,int nx,int ny,int nw,int nh,bool visible=true){
+        bool shown=(GetWindowLongPtrW(control,GWL_STYLE)&WS_VISIBLE)!=0;
+        if(!visible){if(shown)ShowWindow(control,SW_HIDE);return;}
+        nw=pf::max(1,nw);nh=pf::max(1,nh);
+        bool moved=x!=nx||y!=ny||w<0,sized=w!=nw||h!=nh;
+        if(shown&&!moved&&!sized)return;
+        UINT flags=SWP_NOACTIVATE|SWP_NOZORDER|(shown?0:SWP_SHOWWINDOW)|(moved?0:SWP_NOMOVE)|(sized?0:SWP_NOSIZE);
+        *this={nx,ny,nw,nh};SetWindowPos(control,nullptr,nx,ny,nw,nh,flags);
+    }
+};
+inline void move(HWND control,int x,int y,int w,int h,bool visible=true){
+    RECT r;GetWindowRect(control,&r);MapWindowPoints(nullptr,GetParent(control),reinterpret_cast<POINT*>(&r),2);
+    ControlPlacement{r.left,r.top,r.right-r.left,r.bottom-r.top}.place(control,x,y,w,h,visible);
+}
+template<class Update> void replaceList(HWND control,Update update){
+    bool shown=(GetWindowLongPtrW(control,GWL_STYLE)&WS_VISIBLE)!=0;
+    if(shown)SendMessageW(control,WM_SETREDRAW,FALSE,0);
+    update();
+    if(shown){SendMessageW(control,WM_SETREDRAW,TRUE,0);RedrawWindow(control,nullptr,nullptr,RDW_INVALIDATE|RDW_FRAME);}
+}
 inline void line(HDC dc,int x1,int y1,int x2,int y2,COLORREF c,int width=1){HPEN pen=CreatePen(PS_SOLID,width,c);auto old=SelectObject(dc,pen);MoveToEx(dc,x1,y1,nullptr);LineTo(dc,x2,y2);SelectObject(dc,old);DeleteObject(pen);}
 inline void text(HDC dc,std::wstring value,RECT r,COLORREF c=RGB(230,233,241),UINT flags=DT_LEFT|DT_VCENTER|DT_SINGLELINE){SetTextColor(dc,c);SetBkMode(dc,TRANSPARENT);DrawTextW(dc,value.c_str(),int(value.size()),&r,flags);}
 inline std::wstring windowText(HWND window){int n=GetWindowTextLengthW(window);std::wstring out(n+1,0);GetWindowTextW(window,out.data(),n+1);out.resize(n);return out;}
@@ -56,10 +99,15 @@ public:
         hwnd=CreateWindowExW(0,L"PixForgeNativeSurface",L"",WS_CHILD|WS_VISIBLE|WS_CLIPSIBLINGS|WS_TABSTOP|style,0,0,1,1,parent,reinterpret_cast<HMENU>(INT_PTR(id)),GetModuleHandleW(nullptr),this);
     }
     void redraw(){InvalidateRect(hwnd,nullptr,FALSE);}
-    static LRESULT CALLBACK proc(HWND hwnd,UINT msg,WPARAM wp,LPARAM lp){auto self=reinterpret_cast<Surface*>(GetWindowLongPtrW(hwnd,GWLP_USERDATA));if(msg==WM_NCCREATE){self=static_cast<Surface*>(reinterpret_cast<CREATESTRUCTW*>(lp)->lpCreateParams);SetWindowLongPtrW(hwnd,GWLP_USERDATA,LONG_PTR(self));}if(!self)return DefWindowProcW(hwnd,msg,wp,lp);if(msg==WM_NCHITTEST&&!self->event)return HTTRANSPARENT;if(msg==WM_ERASEBKGND)return 1;if(msg==WM_PRINTCLIENT){RECT r;GetClientRect(hwnd,&r);SelectObject(HDC(wp),self->font);fill(HDC(wp),r,self->background);self->draw(HDC(wp),r);return 0;}if(msg==WM_PAINT&&self->directPaint){PAINTSTRUCT ps;HDC dc=BeginPaint(hwnd,&ps);bool done=false;try{done=self->directPaint();}catch(const std::exception& e){self->fail(e);}catch(...){self->fail(std::runtime_error("Unexpected surface rendering failure"));}if(!done){RECT r;GetClientRect(hwnd,&r);fill(dc,r,self->background);SelectObject(dc,self->font);self->draw(dc,r);}EndPaint(hwnd,&ps);return 0;}if(msg==WM_PAINT){PAINTSTRUCT ps;HDC dc=BeginPaint(hwnd,&ps);RECT r;GetClientRect(hwnd,&r);if(r.right&&r.bottom){HDC mem=CreateCompatibleDC(dc);HBITMAP bitmap=CreateCompatibleBitmap(dc,r.right,r.bottom);auto old=SelectObject(mem,bitmap);SelectObject(mem,self->font);fill(mem,r,self->background);self->draw(mem,r);BitBlt(dc,ps.rcPaint.left,ps.rcPaint.top,ps.rcPaint.right-ps.rcPaint.left,ps.rcPaint.bottom-ps.rcPaint.top,mem,ps.rcPaint.left,ps.rcPaint.top,SRCCOPY);SelectObject(mem,old);DeleteObject(bitmap);DeleteDC(mem);}EndPaint(hwnd,&ps);return 0;}if(self->event){try{auto result=self->event(msg,wp,lp);if(result!=LONG_PTR(-987654321))return result;}catch(const std::exception& e){self->fail(e);return 0;}catch(...){self->fail(std::runtime_error("Unexpected surface input failure"));return 0;}}return DefWindowProcW(hwnd,msg,wp,lp);}
+    static LRESULT CALLBACK proc(HWND hwnd,UINT msg,WPARAM wp,LPARAM lp){auto self=reinterpret_cast<Surface*>(GetWindowLongPtrW(hwnd,GWLP_USERDATA));if(msg==WM_NCCREATE){self=static_cast<Surface*>(reinterpret_cast<CREATESTRUCTW*>(lp)->lpCreateParams);SetWindowLongPtrW(hwnd,GWLP_USERDATA,LONG_PTR(self));}if(!self)return DefWindowProcW(hwnd,msg,wp,lp);if(msg==WM_NCHITTEST&&!self->event)return HTTRANSPARENT;if(msg==WM_ERASEBKGND)return 1;if(msg==WM_PRINTCLIENT){RECT r;GetClientRect(hwnd,&r);SelectObject(HDC(wp),self->font);fill(HDC(wp),r,self->background);self->draw(HDC(wp),r);return 0;}if(msg==WM_PAINT){
+            PAINTSTRUCT ps;HDC dc=BeginPaint(hwnd,&ps);bool presented=false;
+            if(self->directPaint)try{presented=self->directPaint();}catch(const std::exception& e){self->fail(e);}catch(...){self->fail(std::runtime_error("Unexpected surface rendering failure"));}
+            if(!presented){RECT r;GetClientRect(hwnd,&r);bufferedPaint(dc,ps.rcPaint,[&](HDC mem){SelectObject(mem,self->font);fill(mem,r,self->background);self->draw(mem,r);});}
+            EndPaint(hwnd,&ps);return 0;
+        }if(self->event){try{auto result=self->event(msg,wp,lp);if(result!=LONG_PTR(-987654321))return result;}catch(const std::exception& e){self->fail(e);return 0;}catch(...){self->fail(std::runtime_error("Unexpected surface input failure"));return 0;}}return DefWindowProcW(hwnd,msg,wp,lp);}
 };
 constexpr LRESULT UNHANDLED=LONG_PTR(-987654321);
-struct FormField {HWND label=nullptr,control=nullptr;int id=0,height=29;std::function<void()> callback;};
+struct FormField {HWND label=nullptr,control=nullptr;int id=0,height=29;std::function<void()> callback;ControlPlacement labelPlacement,controlPlacement;};
 class Form {
 public:
     HWND hwnd=nullptr;HFONT font=nullptr;HBRUSH brush=nullptr;std::vector<FormField> fields;int offset=0,total=0;std::function<void(int)> changed;std::function<void(std::function<void()>)> dispatch;int nextId=2000;bool loading=false;
@@ -75,7 +123,7 @@ public:
     HWND button(std::wstring title,std::function<void()> callback){return add(L"",title,std::move(callback),L"BUTTON",31);}
     HWND toggle(std::wstring title,bool checked=false){HWND h=add(L"",title,{},L"BUTTON");fields.back().callback=[h]{formSwitchSet(h,!formSwitchValue(h));};formSwitchSet(h,checked);return h;}
     HWND combo(std::wstring title,std::initializer_list<std::wstring> values,std::function<void()> callback={}){HWND c=add(title,L"",std::move(callback),L"COMBOBOX");for(auto& value:values)SendMessageW(c,CB_ADDSTRING,0,LPARAM(value.c_str()));SendMessageW(c,CB_SETCURSEL,0,0);return c;}
-    void layout(){RECT r;GetClientRect(hwnd,&r);int y=12;for(auto& f:fields){if(f.label){MoveWindow(f.label,12,y-offset,pf::max(1,r.right-24),20,TRUE);y+=21;}MoveWindow(f.control,12,y-offset,pf::max(1,r.right-24),f.height+(std::wstring(className(f.control))==L"ComboBox"?220:0),TRUE);y+=f.height+9;}total=y;SCROLLINFO info{sizeof info,SIF_RANGE|SIF_PAGE|SIF_POS,0,pf::max(0,total),UINT(r.bottom),offset};SetScrollInfo(hwnd,SB_VERT,&info,TRUE);}
+    void layout(){RECT r;GetClientRect(hwnd,&r);int y=12;for(auto& f:fields){if(f.label){f.labelPlacement.place(f.label,12,y-offset,r.right-24,20);y+=21;}f.controlPlacement.place(f.control,12,y-offset,r.right-24,f.height+(className(f.control)==L"ComboBox"?220:0));y+=f.height+9;}total=y;SCROLLINFO info{sizeof info,SIF_RANGE|SIF_PAGE|SIF_POS,0,pf::max(0,total),UINT(r.bottom),offset};SetScrollInfo(hwnd,SB_VERT,&info,TRUE);}
     static std::wstring className(HWND h){wchar_t s[64];GetClassNameW(h,s,64);return s;}
     void scroll(int next){RECT r;GetClientRect(hwnd,&r);int old=offset;offset=pf::clamp(next,0,pf::max(0,total-r.bottom));if(offset!=old)layout();}
     static LRESULT CALLBACK proc(HWND hwnd,UINT msg,WPARAM wp,LPARAM lp){auto self=reinterpret_cast<Form*>(GetWindowLongPtrW(hwnd,GWLP_USERDATA));if(msg==WM_NCCREATE){self=static_cast<Form*>(reinterpret_cast<CREATESTRUCTW*>(lp)->lpCreateParams);SetWindowLongPtrW(hwnd,GWLP_USERDATA,LONG_PTR(self));}if(!self)return DefWindowProcW(hwnd,msg,wp,lp);switch(msg){case WM_SIZE:self->layout();return 0;case WM_ERASEBKGND:{RECT r;GetClientRect(hwnd,&r);FillRect(HDC(wp),&r,self->brush);return 1;}case WM_CTLCOLOREDIT:case WM_CTLCOLORLISTBOX:case WM_CTLCOLORSTATIC:{HDC dc=HDC(wp);SetTextColor(dc,RGB(230,233,241));SetBkColor(dc,RGB(41,45,54));return LRESULT(self->brush);}case WM_DRAWITEM:{auto d=reinterpret_cast<DRAWITEMSTRUCT*>(lp);SelectObject(d->hDC,self->font);if(isFormSwitch(d->hwndItem)){auto label=windowText(d->hwndItem);label=label.substr(0,label.find(L"："));drawViewSwitch(d->hDC,d->rcItem,label,formSwitchValue(d->hwndItem),IsWindowEnabled(d->hwndItem)!=FALSE,int(GetDpiForWindow(hwnd)),RGB(41,45,54));}else{fill(d->hDC,d->rcItem,(d->itemState&ODS_SELECTED)?RGB(80,82,105):RGB(53,58,71));text(d->hDC,windowText(d->hwndItem),d->rcItem);}drawButtonFocus(d->hDC,d->rcItem,d->hwndItem,d->itemState);return TRUE;}case WM_COMMAND:if(!self->loading){int id=LOWORD(wp),notification=HIWORD(wp);if(notification==EN_CHANGE&&self->changed){self->changed(id);return 0;}for(auto& f:self->fields)if(f.id==id&&f.callback&&(notification==BN_CLICKED||notification==CBN_SELCHANGE||notification==LBN_SELCHANGE)){try{if(self->dispatch)self->dispatch(f.callback);else f.callback();}catch(std::exception& e){MessageBoxW(hwnd,wide(e.what()).c_str(),L"PixForge",MB_ICONWARNING);}break;}}return 0;case WM_MOUSEWHEEL:self->scroll(self->offset-GET_WHEEL_DELTA_WPARAM(wp)/WHEEL_DELTA*65);return 0;case WM_VSCROLL:{int next=self->offset;switch(LOWORD(wp)){case SB_LINEUP:next-=25;break;case SB_LINEDOWN:next+=25;break;case SB_PAGEUP:next-=220;break;case SB_PAGEDOWN:next+=220;break;case SB_THUMBTRACK:{SCROLLINFO info{sizeof info,SIF_TRACKPOS};GetScrollInfo(hwnd,SB_VERT,&info);next=info.nTrackPos;break;}}self->scroll(next);return 0;}}
@@ -83,11 +131,22 @@ public:
     }
 };
 inline int comboIndex(HWND hwnd){if(isFormSwitch(hwnd))return formSwitchValue(hwnd)?1:0;return int(SendMessageW(hwnd,CB_GETCURSEL,0,0));}
-inline void comboSet(HWND hwnd,int index){if(isFormSwitch(hwnd)){formSwitchSet(hwnd,index!=0);return;}SendMessageW(hwnd,CB_SETCURSEL,index,0);}
+inline void comboSet(HWND hwnd,int index){if(comboIndex(hwnd)==index)return;if(isFormSwitch(hwnd)){formSwitchSet(hwnd,index!=0);return;}SendMessageW(hwnd,CB_SETCURSEL,index,0);}
+struct ComboChoices {
+    std::vector<std::wstring> labels;
+    void set(HWND control,std::vector<std::wstring> values,int index){
+        if(values==labels){comboSet(control,index);return;}
+        labels=std::move(values);
+        replaceList(control,[&]{
+            SendMessageW(control,CB_RESETCONTENT,0,0);
+            for(const auto& value:labels)SendMessageW(control,CB_ADDSTRING,0,LPARAM(value.c_str()));
+            comboSet(control,index);
+        });
+    }
+};
 inline double numberEdit(HWND hwnd,double low,double high){auto s=utf8(windowText(hwnd));char* end=nullptr;double n=std::strtod(s.c_str(),&end);if(end==s.c_str()||*end||!std::isfinite(n)||n<low||n>high)throw std::runtime_error("Invalid number: "+s);return n;}
 inline int integerEdit(HWND hwnd,int low,int high){double n=numberEdit(hwnd,low,high);if(n!=std::floor(n))throw std::runtime_error("Expected an integer");return int(n);}
 inline std::string stringEdit(HWND hwnd){return utf8(windowText(hwnd));}
-inline void move(HWND hwnd,int x,int y,int w,int h,bool visible=true){ShowWindow(hwnd,visible?SW_SHOW:SW_HIDE);if(visible)MoveWindow(hwnd,x,y,pf::max(1,w),pf::max(1,h),TRUE);}
 inline fs::path chooseFile(HWND owner,const fs::path& initial,bool save,const wchar_t* filter,const wchar_t* ext){
     std::vector<wchar_t> buffer(32768);auto name=initial.wstring();std::copy(name.begin(),name.end(),buffer.begin());OPENFILENAMEW ofn{sizeof ofn};ofn.hwndOwner=owner;ofn.lpstrFilter=filter;ofn.lpstrFile=buffer.data();ofn.nMaxFile=DWORD(buffer.size());ofn.lpstrDefExt=ext;ofn.Flags=OFN_EXPLORER|OFN_NOCHANGEDIR|OFN_PATHMUSTEXIST|(save?OFN_OVERWRITEPROMPT:OFN_FILEMUSTEXIST);bool ok=save?GetSaveFileNameW(&ofn):GetOpenFileNameW(&ofn);return ok?fs::path(buffer.data()):fs::path{};
 }

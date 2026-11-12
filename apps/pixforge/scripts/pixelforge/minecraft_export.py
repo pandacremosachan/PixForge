@@ -170,7 +170,7 @@ def publish(document, path, *, validation_digest, format="resource-pack", overwr
         files.update(project_files(document.minecraft_project, standalone=format == "forge-mod", scene_geometry=report["forge_runtime"].get("scene_geometry", True)))
     if format == "resource-pack":
         files["pack.mcmeta"] = encode({"pack": {"pack_format": 15, "description": document.minecraft_project["description"]}})
-    manifest = {"schema": "pixforge.minecraft-export/v1", "exporter_version": "4.1.1", "format": format,
+    manifest = {"schema": "pixforge.minecraft-export/v1", "exporter_version": "4.2.3", "format": format,
                 "target": report["target"], "document_id": document.document_id,
                 "content_digest": document.art_digest(), "validation_digest": validation_digest,
                 "files": {name: digest(raw) for name, raw in sorted(files.items())},

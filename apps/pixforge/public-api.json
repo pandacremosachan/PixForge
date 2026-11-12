@@ -1,7 +1,7 @@
 {
   "schema": "pixforge.application/v4",
   "application": "PixForge",
-  "version": "4.1.1",
+  "version": "4.2.3",
   "public_api_version": 4,
   "interfaces": [
     "resident-http",

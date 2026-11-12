@@ -27,7 +27,7 @@ public:
     void time(double value){sceneAt=value;}
     void playback(const J& view){sceneView=view;}
     void magnification(double value){zoom=value;}
-    void setBackground(int mode){background=pf::clamp(mode,0,2);}
+    void setBackground(int mode){background=pf::clamp(mode,0,3);}
     void configure(const J& definition,const Image& atlas,const std::vector<std::string>& visible,bool model,const J& animation=J()){
         if(!available)return;overlays=visible;showModel=model;shapes=definition;scene=animation;emptyTexture=!hasVisiblePixels(atlas);
         faces=modelMesh(definition["model"]);auto bound=sceneBounds(definition,faces,scene);center=bound.first;radius=bound.second;referenceSize=400;
@@ -48,6 +48,6 @@ public:
     }
     Image readback(){RECT r;GetClientRect(window,&r);draw(r.right,r.bottom);Image out(r.right,r.bottom);std::vector<uint8_t> raw(out.bytes.size());wglMakeCurrent(dc,context);glReadBuffer(GL_FRONT);glPixelStorei(GL_PACK_ALIGNMENT,1);glReadPixels(0,0,r.right,r.bottom,GL_RGBA,GL_UNSIGNED_BYTE,raw.data());for(int y=0;y<out.h;++y)std::memcpy(out.bytes.data()+size_t(y)*out.w*4,raw.data()+size_t(out.h-1-y)*out.w*4,size_t(out.w)*4);glReadBuffer(GL_BACK);return out;}
     bool ready()const{return available&&prepared;}
-    J metrics()const{return J::object({{"available",available},{"backend",available?"OpenGL hardware":"C++ raster fallback"},{"vendor",vendor},{"device",device},{"presented_frames",size_t(frames)},{"texture_uploads",size_t(uploads)},{"geometry_builds",size_t(geometryBuilds)},{"background",std::array<const char*,3>{"checker","light","dark"}[background]},{"last_frame_ms",lastMs}});}
+    J metrics()const{return J::object({{"available",available},{"backend",available?"OpenGL hardware":"C++ raster fallback"},{"vendor",vendor},{"device",device},{"presented_frames",size_t(frames)},{"texture_uploads",size_t(uploads)},{"geometry_builds",size_t(geometryBuilds)},{"background",std::array<const char*,4>{"checker","light","dark","studio"}[background]},{"last_frame_ms",lastMs}});}
 };
 }

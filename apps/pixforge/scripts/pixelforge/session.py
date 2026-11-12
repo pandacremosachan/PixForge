@@ -248,6 +248,10 @@ def dispatch(document, payload, *, focus=None):
         document.change_canvas(lambda canvas: canvas.__dict__.update(candidate.__dict__), payload.get("label", "手动修改"))
     elif action == "layer_select":
         document.select_layer(payload["name"])
+    elif action == "layer_visibility":
+        def toggle(canvas):
+            canvas.layer_named(payload["name"]).visible = payload["visible"]
+        document.change_canvas(toggle, "切换图层可见性")
     elif action == "frame_edit":
         step = document.edit_frame(payload["operation"], payload["step_index"])
         return {"state": document.status(), "step_index": step}

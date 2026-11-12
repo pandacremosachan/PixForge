@@ -61,8 +61,8 @@ def build(binary, output):
     shutil.copy2(source_root.parent/'MINECRAFT_RUNTIME_WORKBENCH.md',output/'MINECRAFT_RUNTIME_WORKBENCH.md')
     shutil.copy2(source_root.parent/'MINECRAFT_MATERIAL_DATA.md',output/'MINECRAFT_MATERIAL_DATA.md')
     shutil.copytree(source_root/'pixelforge',packages/'pixelforge',ignore=shutil.ignore_patterns('__pycache__','*.pyc'))
-    metadata=packages/'pixelforge-4.1.1.dist-info';metadata.mkdir()
-    (metadata/'METADATA').write_text('Metadata-Version: 2.1\nName: pixelforge\nVersion: 4.1.1\nSummary: PixForge independent pixel, animation, shape and scene core\n',encoding='utf-8')
+    metadata=packages/'pixelforge-4.2.3.dist-info';metadata.mkdir()
+    (metadata/'METADATA').write_text('Metadata-Version: 2.1\nName: pixelforge\nVersion: 4.2.3\nSummary: PixForge independent pixel, animation, shape and scene core\n',encoding='utf-8')
     (metadata/'WHEEL').write_text('Wheel-Version: 1.0\nGenerator: PixForge native local packager\nRoot-Is-Purelib: true\nTag: py3-none-any\n',encoding='utf-8')
     notice=source_root.parent/'THIRD_PARTY_NOTICES.md'
     if notice.exists():shutil.copy2(notice,output/'THIRD_PARTY_NOTICES.md')
@@ -73,7 +73,7 @@ def build(binary, output):
     (output/'使用说明.md').write_text(readme,encoding='utf-8',newline='\n')
     files={str(p.relative_to(output)).replace('\\','/'):hashlib.sha256(p.read_bytes()).hexdigest() for p in output.rglob('*') if p.is_file()}
     import json
-    (output/'package-manifest.json').write_text(json.dumps({'version':'4.1.1','frontend':'C++20/Win32/OpenGL','core':'bundled CPython 3.12/Pillow/Pydantic','qt_included':False,'files':files},ensure_ascii=False,indent=2)+'\n',encoding='utf-8',newline='\n')
+    (output/'package-manifest.json').write_text(json.dumps({'version':'4.2.3','frontend':'C++20/Win32/OpenGL','core':'bundled CPython 3.12/Pillow/Pydantic','qt_included':False,'files':files},ensure_ascii=False,indent=2)+'\n',encoding='utf-8',newline='\n')
     return output
 
 

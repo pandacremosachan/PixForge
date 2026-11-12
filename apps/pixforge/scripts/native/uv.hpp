@@ -5,12 +5,12 @@ inline std::wstring uvNumber(double n){wchar_t out[32];std::swprintf(out,32,L"%.
 inline std::wstring uvBounds(const J& region,int ox=0,int oy=0){
     std::wstring out;for(auto& rect:region["pixel_rects"].arr()){if(!out.empty())out+=L" / ";out+=L"["+std::to_wstring(rect[0].integer()+ox)+L", "+std::to_wstring(rect[1].integer()+oy)+L"] "+std::to_wstring(rect[2].integer())+L"×"+std::to_wstring(rect[3].integer());}return out;
 }
-void App::clearUvPin(){uvPinned=false;uvRegion.clear();uvX=uvY=-1;uvHits.clear();uvScroll=0;if(uvInspector)uvInspector->redraw();if(canvasView)canvasView->redraw();}
+void App::clearUvPin(){uvPinned=false;uvRegion.clear();uvX=uvY=-1;uvHits.clear();uvScroll=0;if(details)details->redraw();if(canvasView)canvasView->redraw();}
 void App::inspectUvPixel(int x,int y,bool pin){
     if(!uvGuides||!loaded)return;auto frameRect=currentRect();int px=x-frameRect.x,py=y-frameRect.y;if(uvPinned&&!pin)return;
     if(pin&&uvPinned){clearUvPin();return;}if(!pin&&uvX==px&&uvY==py)return;uvX=px;uvY=py;uvRegion.clear();uvHits.clear();uvScroll=0;
     if(frameRect.contains(x,y))for(int i=0;i<int(modelUv["regions"].size());++i){for(auto& r:modelUv["regions"][i]["pixel_rects"].arr())if(px>=r[0].number()&&py>=r[1].number()&&px<r[0].number()+r[2].number()&&py<r[1].number()+r[3].number()){uvHits.push_back(i);break;}}
-    uvPinned=pin;canvasView->redraw();uvInspector->redraw();
+    uvPinned=pin;canvasView->redraw();details->redraw();
 }
 J App::uvStatus()const{
     J regions=J::array(),faces=J::array();for(int i:uvHits){auto& group=modelUv["regions"][i];regions.arr().push_back(group["id"]);for(auto& id:group["face_ids"].arr())faces.arr().push_back(id);}

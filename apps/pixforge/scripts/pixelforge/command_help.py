@@ -12,7 +12,7 @@ def types(schema):
 
 def root_help():
     return {
-        'application': 'PixForge', 'version': '4.1.1', 'public_api_version': 4,
+        'application': 'PixForge', 'version': '4.2.3', 'public_api_version': 4,
         'usage': 'PixForgeNative.exe serve [--workspace DIR --runtime DIR] | GROUP ACTION [OPTIONS]', 'groups': PURPOSES,
         'options': {
             '--workspace DIR': 'Project workspace; defaults to the current directory.',

@@ -54,7 +54,7 @@ class Workbench:
                 self.check_paths(state)
                 if (self.same(state, expected) and state.get("pending") is False
                         and (panel is None or state.get("panel") == panel)
-                        and (panel != "shapes" or state.get("scene_ready") is True and state.get("show_model") is True)):
+                        and (panel != "shapes" or state.get("scene_ready") is True)):
                     return state
             time.sleep(.1)
         raise StudioError("工作台尚未同步到指定版本", "DESKTOP_TIMEOUT")

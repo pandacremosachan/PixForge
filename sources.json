@@ -1,7 +1,7 @@
 {
   "pixelforge": {
     "origin": "existing user-level PixForge skill",
-    "tool_version": "4.1.1",
+    "tool_version": "4.2.3",
     "license": "not declared in original installation",
     "capabilities": [
       "static pixels",
@@ -14,13 +14,12 @@
       "atomic drawing batches and non-mutating dry-run previews",
       "shared command native, background, tile and all-frame evidence",
       "content-bound visual review records with stale-input and evidence detection",
-      "shared desktop canvas, RGBA layers, manual tools and global undo/redo",
+      "live texture and model preview, visible drawing tools, project palette, layers and shared undo/redo",
       "authenticated local command session with document and revision conflict guards",
       "in-memory timed animation playback, tiling, backgrounds and onion skin",
       "editable project persistence, recovery and user feedback visible to AI",
       "user-confirmed native PNG export bound to current pixels and animation timing",
-      "Qt workspace with PixiEditor-inspired layout, independent icons, color wheel and layer thumbnails",
-      "frame-scoped pencil, eraser, fill, shapes and horizontal/vertical mirrored drawing",
+      "frame-scoped pencil, eraser, fill, color sampling and layer selection",
       "lossless multi-layer frame insertion, duplication, deletion and explicit playback ordering",
       "frontend-independent Document and durable Session core without Qt imports",
       "equivalent headless command drawing, lossless animation review, chat approval and export",
@@ -30,7 +29,7 @@
       "atomic shape editing, embedded single-atlas Java elements model and shared approval/history/recovery",
       "Pillow model/shape overlays and portable interactive timed HTML without Qt or computer automation",
       "neutral shape JSON and explicit Forge 1.20.1 Mojmap Java helper export",
-      "optional GUI model/shape editor using the same independent core",
+      "rotatable model preview with optional shape overlays",
       "bounded maximal-box cover with exact union packing and explicit conservative model-distance approximation",
       "automatic preservation of detected shape symmetries, dry-run proposals and shared construction history",
       "lossless Java export packing with balanced unoptimized unions and one final optimization"
@@ -83,7 +82,7 @@
     },
     "software_source": "apps/pixforge",
     "skill_source": ".agents/skills/pixelforge",
-    "skill_version": "3.1.2",
+    "skill_version": "3.2.3",
     "public_api_version": 4,
     "minecraft_assets": {
       "capability": "minecraft-assets/v1",

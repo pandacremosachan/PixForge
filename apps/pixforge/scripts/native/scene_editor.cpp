@@ -10,6 +10,8 @@ struct SceneEditor:std::enable_shared_from_this<SceneEditor>{
     App& app;HWND hwnd=nullptr,accept=nullptr;std::unique_ptr<Form> sf,cf,kf;std::unique_ptr<Surface> surface;
     std::map<std::string,HWND> fields;std::map<std::string,std::function<void()>> actions;
     J draft,validated,observed;Image atlas;RenderResult rendered;std::unique_ptr<ScenePlayer> player;
+    enum class Scope {state,channel,keyList,keyFields};
+    ComboChoices stateChoices,channelChoices,keyChoices;
     int selected=0,channel=0,key=0;bool committing=false,loading=false,stateDirty=false,channelDirty=false,keyDirty=false,done=false,accepted=false,busy=false,playing=false;
     uint64_t serial=0,validSerial=0;double clock=0,last=0;std::wstring message=L"编辑草稿后，点击“校验并更新预览”。应用后可在主工作台撤销。";
     explicit SceneEditor(App& owner):app(owner),observed(owner.tokens()),atlas(owner.canvas.composed.crop(owner.currentRect())){
@@ -32,34 +34,60 @@ struct SceneEditor:std::enable_shared_from_this<SceneEditor>{
     J& track(){return emitter()?clip()["emitters"][channel-int(clip()["transforms"].size())]:clip()["transforms"][channel];}
     J& curve(){return track()[emitter()?"emission":"keyframes"];}
     bool hasChannel()const{return clip()["transforms"].size()+clip()["emitters"].size()>0;}
-    void say(std::wstring value){message=std::move(value);if(hwnd)InvalidateRect(hwnd,nullptr,FALSE);}
+    void say(std::wstring value){if(message==value)return;message=std::move(value);RECT r;GetClientRect(hwnd,&r);RECT strip{D(12),r.bottom-D(72),r.right-D(10),r.bottom-D(40)};InvalidateRect(hwnd,&strip,FALSE);}
     void safe(const std::function<void()>& f){try{f();}catch(std::exception& e){say(wide(e.what()));}}
     void touch(){++serial;validated=J();busy=false;playing=false;player.reset();EnableWindow(accept,FALSE);say(L"草稿已修改。校验后更新预览，再应用到工程。");}
     HWND add(Form& f,const std::string& id,const wchar_t* label,const wchar_t* value=L""){return fields[id]=f.add(label,value);}
     HWND combo(Form& f,const std::string& id,const wchar_t* label,std::initializer_list<std::wstring> options,std::function<void()> callback={}){return fields[id]=f.combo(label,options,std::move(callback));}
     void button(Form& f,const std::string& id,const wchar_t* label,std::function<void()> fn){actions[id]=fn;fields[id]=f.button(label,[this,fn]{safe(fn);});}
     void textField(const char* id,const J& value){setText(fields[id],value.isString()?value.str():value.dump());}
-    void list(HWND h,const std::vector<std::wstring>& labels,int index){SendMessageW(h,CB_RESETCONTENT,0,0);for(auto& label:labels)SendMessageW(h,CB_ADDSTRING,0,LPARAM(label.c_str()));comboSet(h,index);}
     void fillStates(){
-        loading=true;sf->loading=cf->loading=kf->loading=true;std::vector<std::wstring> names;
-        for(auto& s:draft["states"].arr())names.push_back(wide(s["label"].str()+" ["+s["id"].str()+"]"));list(fields["state"],names,selected);
+        std::vector<std::wstring> names;
+        for(auto& s:draft["states"].arr())names.push_back(wide(s["label"].str()+" ["+s["id"].str()+"]"));stateChoices.set(fields["state"],std::move(names),selected);
         textField("state_id",clip()["id"]);textField("state_label",clip()["label"]);textField("duration",clip()["duration_ms"]);comboSet(fields["state_loop"],clip()["loop"].boolean()?1:0);textField("next",clip()["next"].null()?J(""):clip()["next"]);
         for(auto event:{"start","stop"}){std::string target;for(auto& r:draft["transitions"].arr())if(r["from"]==clip()["id"]&&r["event"].str()==event)target=r["to"].str();setText(fields[event],target);}
         textField("initial",draft["initial_state"]);textField("sequence",draft["preview_sequence"]);comboSet(fields["sequence_loop"],draft["loop"].boolean()?1:0);
         auto texture=clip()["texture"];comboSet(fields["texture_mode"],texture["mode"].str()=="hold"?1:0);textField("texture_value",texture["mode"].str()=="hold"?(texture["frame"].null()?J(""):texture["frame"]):texture["speed"]);
-        stateDirty=false;fillChannels();loading=false;sf->loading=cf->loading=kf->loading=false;
+        stateDirty=false;fillChannels();
     }
     void fillChannels(){
-        std::vector<std::wstring> names;for(auto& t:clip()["transforms"].arr())names.push_back(wide(t["id"].str()+" · "+t["type"].str()));for(auto& e:clip()["emitters"].arr())names.push_back(wide(e["id"].str()+" · emission"));channel=pf::clamp(channel,0,pf::max(0,int(names.size())-1));list(fields["channel"],names,channel);
+        std::vector<std::wstring> names;for(auto& t:clip()["transforms"].arr())names.push_back(wide(t["id"].str()+" · "+t["type"].str()));for(auto& e:clip()["emitters"].arr())names.push_back(wide(e["id"].str()+" · emission"));channel=pf::clamp(channel,0,pf::max(0,int(names.size())-1));channelChoices.set(fields["channel"],std::move(names),channel);
         if(hasChannel()){J config=track();config.obj().erase("keyframes");config.obj().erase("emission");textField("config",config);comboSet(fields["entry"],config["entry"].str()=="relative"?2:config["entry"].str()=="from_current"?1:0);}else setText(fields["config"],"");
         channelDirty=false;fillKeys();
     }
     void fillKeys(){
-        std::vector<std::wstring> names;auto& item=track();const J& cs=item;auto& values=cs[emitter()?"emission":"keyframes"];for(auto& k:values.isArray()?values.arr():J::Array{})names.push_back(wide(k["time_ms"].dump()+" ms · "+k["value"].dump()+" · "+k["easing"].str()));key=pf::clamp(key,0,pf::max(0,int(names.size())-1));list(fields["keys"],names,key);
-        if(values.isArray()&&!values.empty()){textField("key_time",values[key]["time_ms"]);textField("key_value",values[key]["value"]);int index=0;std::array<std::string,5> eases={"hold","linear","smooth","ease_in","ease_out"};for(int i=0;i<5;++i)if(eases[i]==values[key]["easing"].str())index=i;comboSet(fields["easing"],index);}else{setText(fields["key_time"],"0");setText(fields["key_value"],"0");}
+        std::vector<std::wstring> names;
+        if(hasChannel()){
+            const J& values=static_cast<const J&>(track())[emitter()?"emission":"keyframes"];
+            if(values.isArray())for(const auto& k:values.arr())names.push_back(wide(k["time_ms"].dump()+" ms · "+k["value"].dump()+" · "+k["easing"].str()));
+        }
+        key=pf::clamp(key,0,pf::max(0,int(names.size())-1));
+        int index=names.empty()?-1:key;
+        keyChoices.set(fields["keys"],std::move(names),index);
+        fillKeyFields();
+    }
+    void fillKeyFields(){
+        if(!keyChoices.labels.empty()){
+            const J& k=static_cast<const J&>(track())[emitter()?"emission":"keyframes"][key];
+            textField("key_time",k["time_ms"]);textField("key_value",k["value"]);
+            std::array<std::string,5> eases={"hold","linear","smooth","ease_in","ease_out"};
+            auto i=std::find(eases.begin(),eases.end(),k["easing"].str());
+            comboSet(fields["easing"],i==eases.end()?0:int(i-eases.begin()));
+        }else{setText(fields["key_time"],"0");setText(fields["key_value"],"0");}
         keyDirty=false;
     }
-    void reload(){if(committing)return;loading=true;sf->loading=cf->loading=kf->loading=true;fillStates();if(surface)surface->redraw();}
+    void reload(Scope scope=Scope::state){
+        if(committing)return;
+        loading=sf->loading=cf->loading=kf->loading=true;
+        switch(scope){
+            case Scope::state:fillStates();break;
+            case Scope::channel:fillChannels();break;
+            case Scope::keyList:fillKeys();break;
+            case Scope::keyFields:fillKeyFields();break;
+        }
+        loading=sf->loading=cf->loading=kf->loading=false;
+        if(scope!=Scope::keyFields&&surface)surface->redraw();
+    }
     void applyState(){
         if(!stateDirty)return;J next=clip();auto old=next["id"].str(),id=stringEdit(fields["state_id"]),label=stringEdit(fields["state_label"]);if(id.empty()||label.empty())throw std::runtime_error("状态 id 和名称不能为空");for(int i=0;i<int(draft["states"].size());++i)if(i!=selected&&draft["states"][i]["id"].str()==id)throw std::runtime_error("状态 id 重复");
         double duration=numberEdit(fields["duration"],100,120000),oldDuration=next["duration_ms"].number();next["id"]=id;next["label"]=label;next["duration_ms"]=duration;next["loop"]=comboIndex(fields["state_loop"])==1;auto automatic=stringEdit(fields["next"]);next["next"]=automatic.empty()?J():J(automatic==old?id:automatic);
@@ -79,11 +107,12 @@ struct SceneEditor:std::enable_shared_from_this<SceneEditor>{
         if(!keyDirty&&!insert)return;auto& c=curve();if(!c.isArray())throw std::runtime_error("周期通道请先点击“采样为关键帧”");double time=numberEdit(fields["key_time"],0,clip()["duration_ms"].number());J value=J::parse(stringEdit(fields["key_value"]));std::string easing=std::array<const char*,5>{"hold","linear","smooth","ease_in","ease_out"}[pf::clamp(comboIndex(fields["easing"]),0,4)];
         if(!insert&&(key==0||key==int(c.size())-1)&&time!=c[key]["time_ms"].number())throw std::runtime_error("端点时间由状态时长决定；可编辑其值");J item=J::object({{"time_ms",time},{"value",value},{"easing",easing}});J replacement=c;
         int found=-1;for(int i=0;i<int(c.size());++i)if(c[i]["time_ms"].number()==time)found=i;if(insert){if(found>=0)throw std::runtime_error("该时间已有关键帧，请修改所选关键帧");replacement.arr().push_back(item);}else{if(found>=0&&found!=key)throw std::runtime_error("关键帧时间重复");replacement[key]=item;}
-        std::sort(replacement.arr().begin(),replacement.arr().end(),[](const J&a,const J&b){return a["time_ms"].number()<b["time_ms"].number();});c=replacement;for(int i=0;i<int(c.size());++i)if(c[i]["time_ms"].number()==time)key=i;touch();keyDirty=false;reload();
+        std::sort(replacement.arr().begin(),replacement.arr().end(),[](const J&a,const J&b){return a["time_ms"].number()<b["time_ms"].number();});c=replacement;for(int i=0;i<int(c.size());++i)if(c[i]["time_ms"].number()==time)key=i;touch();keyDirty=false;reload(Scope::keyList);
     }
-    void commit(){
+    bool commit(bool refresh=true){
+        if(!stateDirty&&!channelDirty&&!keyDirty)return false;
         auto backup=draft;bool sd=stateDirty,cd=channelDirty,kd=keyDirty;
-        committing=true;try{applyKey();applyChannel();applyState();committing=false;if(sd||cd||kd)reload();}catch(...){draft=backup;stateDirty=sd;channelDirty=cd;keyDirty=kd;committing=false;throw;}
+        committing=true;try{applyKey();applyChannel();applyState();committing=false;if(refresh)reload();return true;}catch(...){draft=backup;stateDirty=sd;channelDirty=cd;keyDirty=kd;committing=false;throw;}
     }
     void insertKey(){
         auto t=stringEdit(fields["key_time"]),v=stringEdit(fields["key_value"]);int ease=comboIndex(fields["easing"]);bool dirty=keyDirty;keyDirty=false;
@@ -114,13 +143,13 @@ struct SceneEditor:std::enable_shared_from_this<SceneEditor>{
     }
     void init(){
         static bool registered=false;if(!registered){WNDCLASSEXW wc{sizeof wc};wc.lpfnWndProc=proc;wc.hInstance=GetModuleHandleW(nullptr);wc.lpszClassName=L"PixForgeSceneEditor";applicationIcons(wc);wc.hCursor=LoadCursorW(nullptr,IDC_ARROW);RegisterClassExW(&wc);registered=true;}
-        RECT owner;GetWindowRect(app.hwnd,&owner);hwnd=CreateWindowExW(WS_EX_DLGMODALFRAME|WS_EX_CONTROLPARENT,L"PixForgeSceneEditor",L"关键帧与状态编辑器",WS_CAPTION|WS_SYSMENU|WS_THICKFRAME|WS_POPUP,(owner.left+owner.right-D(1160))/2,(owner.top+owner.bottom-D(820))/2,D(1160),D(820),app.hwnd,nullptr,GetModuleHandleW(nullptr),this);
+        RECT owner;GetWindowRect(app.hwnd,&owner);hwnd=CreateWindowExW(WS_EX_DLGMODALFRAME|WS_EX_CONTROLPARENT,L"PixForgeSceneEditor",L"关键帧与状态编辑器",WS_CAPTION|WS_SYSMENU|WS_THICKFRAME|WS_POPUP|WS_CLIPCHILDREN,(owner.left+owner.right-D(1160))/2,(owner.top+owner.bottom-D(820))/2,D(1160),D(820),app.hwnd,nullptr,GetModuleHandleW(nullptr),this);
         sf=std::make_unique<Form>(hwnd,101,app.font);cf=std::make_unique<Form>(hwnd,102,app.font);kf=std::make_unique<Form>(hwnd,103,app.font);
         for(auto f:{sf.get(),cf.get(),kf.get()})f->dispatch=[this](auto fn){safe(fn);};
-        combo(*sf,"state",L"状态",{},[this]{int wanted=comboIndex(fields["state"]);try{commit();selected=wanted;channel=key=0;reload();}catch(...){comboSet(fields["state"],selected);throw;}});
+        combo(*sf,"state",L"状态",{},[this]{int wanted=comboIndex(fields["state"]);try{commit(false);selected=wanted;channel=key=0;reload();}catch(...){comboSet(fields["state"],selected);throw;}});
         add(*sf,"state_id",L"状态 id");add(*sf,"state_label",L"显示名称");add(*sf,"duration",L"时长 ms（调整时缩放关键帧时间）");combo(*sf,"state_loop",L"片段循环",{L"否",L"是"},[this]{stateDirty=true;touch();});add(*sf,"next",L"播放结束自动进入（状态 id / 留空）");add(*sf,"start",L"启动事件目标（状态 id / 留空）");add(*sf,"stop",L"停机事件目标（状态 id / 留空）");combo(*sf,"texture_mode",L"材质播放",{L"播放 · 倍速",L"保持 · 源帧索引 / 留空保持当前"},[this]{stateDirty=true;touch();});add(*sf,"texture_value",L"倍速或源帧索引（从 0 开始）");button(*sf,"apply_state",L"更新状态设置",[this]{commit();});button(*sf,"new_state",L"新增静止状态",[this]{createState(false);});button(*sf,"clone_state",L"复制当前状态",[this]{createState(true);});button(*sf,"delete_state",L"删除当前状态",[this]{deleteState();});add(*sf,"initial",L"完整流程初始状态 id");add(*sf,"sequence",L"完整流程时段 JSON（state / duration_ms）");combo(*sf,"sequence_loop",L"完整流程循环",{L"否",L"是"},[this]{stateDirty=true;touch();});
-        combo(*cf,"channel",L"部件 / 发射器通道",{},[this]{int wanted=comboIndex(fields["channel"]);try{commit();channel=wanted;key=0;reload();}catch(...){comboSet(fields["channel"],channel);throw;}});combo(*cf,"entry",L"状态进入方式（部件）",{L"绝对值",L"从切换时姿态插值",L"叠加当前角度（仅旋转）"},[this]{channelDirty=true;touch();});add(*cf,"config",L"当前通道参数 JSON（保留通道 id）");button(*cf,"apply_channel",L"更新通道参数",[this]{commit();});button(*cf,"convert",L"周期运动：采样为关键帧",[this]{convert();});button(*cf,"delete_channel",L"在所有状态中删除此通道",[this]{deleteChannel();});combo(*cf,"new_type",L"新增通道类型",{L"旋转",L"平移",L"缩放",L"粒子发射强度"});add(*cf,"new_id",L"新通道 id",L"part_new");add(*cf,"new_elements",L"部件索引数组（从 0 开始）",L"[0]");add(*cf,"new_pivot",L"支点 [x,y,z]",L"[8,8,8]");add(*cf,"new_axis",L"旋转轴 [x,y,z]",L"[0,1,0]");button(*cf,"add_channel",L"在所有状态中新增通道",[this]{addChannel();});
-        combo(*kf,"keys",L"当前通道关键帧",{},[this]{int wanted=comboIndex(fields["keys"]);try{commit();key=wanted;reload();}catch(...){comboSet(fields["keys"],key);throw;}});add(*kf,"key_time",L"时间 ms");add(*kf,"key_value",L"值：角度 / [x,y,z] / 发射强度 0..1");combo(*kf,"easing",L"到下一关键帧的插值",{L"保持",L"线性",L"平滑",L"缓入",L"缓出"},[this]{keyDirty=true;touch();});button(*kf,"update_key",L"更新所选关键帧",[this]{commit();});button(*kf,"insert_key",L"插入为新关键帧",[this]{insertKey();});button(*kf,"delete_key",L"删除所选关键帧",[this]{commit();if(key==0||key==int(curve().size())-1)throw std::runtime_error("必须保留起止关键帧");curve().arr().erase(curve().arr().begin()+key);keyDirty=false;touch();reload();});
+        combo(*cf,"channel",L"部件 / 发射器通道",{},[this]{int wanted=comboIndex(fields["channel"]);try{bool edited=commit(false);channel=wanted;key=0;reload(edited?Scope::state:Scope::channel);}catch(...){comboSet(fields["channel"],channel);throw;}});combo(*cf,"entry",L"状态进入方式（部件）",{L"绝对值",L"从切换时姿态插值",L"叠加当前角度（仅旋转）"},[this]{channelDirty=true;touch();});add(*cf,"config",L"当前通道参数 JSON（保留通道 id）");button(*cf,"apply_channel",L"更新通道参数",[this]{commit();});button(*cf,"convert",L"周期运动：采样为关键帧",[this]{convert();});button(*cf,"delete_channel",L"在所有状态中删除此通道",[this]{deleteChannel();});combo(*cf,"new_type",L"新增通道类型",{L"旋转",L"平移",L"缩放",L"粒子发射强度"});add(*cf,"new_id",L"新通道 id",L"part_new");add(*cf,"new_elements",L"部件索引数组（从 0 开始）",L"[0]");add(*cf,"new_pivot",L"支点 [x,y,z]",L"[8,8,8]");add(*cf,"new_axis",L"旋转轴 [x,y,z]",L"[0,1,0]");button(*cf,"add_channel",L"在所有状态中新增通道",[this]{addChannel();});
+        combo(*kf,"keys",L"当前通道关键帧",{},[this]{int wanted=comboIndex(fields["keys"]);try{bool edited=commit(false);key=wanted;reload(edited?Scope::state:Scope::keyFields);}catch(...){comboSet(fields["keys"],key);throw;}});add(*kf,"key_time",L"时间 ms");add(*kf,"key_value",L"值：角度 / [x,y,z] / 发射强度 0..1");combo(*kf,"easing",L"到下一关键帧的插值",{L"保持",L"线性",L"平滑",L"缓入",L"缓出"},[this]{keyDirty=true;touch();});button(*kf,"update_key",L"更新所选关键帧",[this]{commit();});button(*kf,"insert_key",L"插入为新关键帧",[this]{insertKey();});button(*kf,"delete_key",L"删除所选关键帧",[this]{commit();if(key==0||key==int(curve().size())-1)throw std::runtime_error("必须保留起止关键帧");curve().arr().erase(curve().arr().begin()+key);keyDirty=false;touch();reload(Scope::keyList);});
         button(*kf,"validate",L"校验并更新预览",[this]{validate();});button(*kf,"preview_state",L"播放选中状态",[this]{preview("state");});button(*kf,"preview_process",L"播放完整流程",[this]{preview("process");});button(*kf,"preview_start",L"触发启动",[this]{preview("start");});button(*kf,"preview_stop",L"触发停机",[this]{preview("stop");});button(*kf,"pause",L"暂停预览",[this]{playing=false;});add(*kf,"preview_time",L"预览时间 ms",L"0");button(*kf,"seek",L"定位预览时间",[this]{seekPreview();});
         sf->changed=[this](int){if(!loading){stateDirty=true;touch();}};cf->changed=[this](int id){if(!loading&&id==GetDlgCtrlID(fields["config"])){channelDirty=true;touch();}};kf->changed=[this](int id){if(!loading&&(id==GetDlgCtrlID(fields["key_time"])||id==GetDlgCtrlID(fields["key_value"]))){keyDirty=true;touch();}};
         for(auto pair:{std::pair<int,const wchar_t*>{21001,L"校验预览"},{21002,L"播放状态"},{21003,L"完整流程"}}){auto h=CreateWindowExW(0,L"BUTTON",pair.second,WS_CHILD|WS_VISIBLE|WS_TABSTOP,0,0,1,1,hwnd,reinterpret_cast<HMENU>(INT_PTR(pair.first)),GetModuleHandleW(nullptr),nullptr);SendMessageW(h,WM_SETFONT,WPARAM(app.font),TRUE);fields["preview_button_"+std::to_string(pair.first)]=h;}
@@ -134,7 +163,7 @@ struct SceneEditor:std::enable_shared_from_this<SceneEditor>{
         RECT r;GetClientRect(hwnd,&r);HDC dc=GetDC(hwnd),mem=CreateCompatibleDC(dc);BITMAPINFO info{};info.bmiHeader.biSize=sizeof(BITMAPINFOHEADER);info.bmiHeader.biWidth=r.right;info.bmiHeader.biHeight=-r.bottom;info.bmiHeader.biPlanes=1;info.bmiHeader.biBitCount=32;info.bmiHeader.biCompression=BI_RGB;void* bits=nullptr;auto bitmap=CreateDIBSection(dc,&info,DIB_RGB_COLORS,&bits,nullptr,0);if(!bitmap){DeleteDC(mem);ReleaseDC(hwnd,dc);throw std::runtime_error("Editor capture allocation failed");}auto old=SelectObject(mem,bitmap);BOOL result=PrintWindow(hwnd,mem,PW_CLIENTONLY);Image image(r.right,r.bottom);auto raw=static_cast<uint8_t*>(bits);for(size_t i=0;i<image.bytes.size();i+=4){image.bytes[i]=raw[i+2];image.bytes[i+1]=raw[i+1];image.bytes[i+2]=raw[i];image.bytes[i+3]=255;}SelectObject(mem,old);DeleteObject(bitmap);DeleteDC(mem);ReleaseDC(hwnd,dc);if(!result||!savePng(image,path))throw std::runtime_error("Editor capture failed");
     }
     J status()const{J values=J::object();for(auto& [id,h]:fields){if(Form::className(h)==L"Edit")values[id]=stringEdit(h);else if(Form::className(h)==L"ComboBox")values[id]=comboIndex(h);}J available=J::array();for(auto& [actionId,callback]:actions)available.arr().push_back(actionId);J editable=J::array();for(auto& [fieldId,handle]:fields){auto kind=Form::className(handle);if(fieldId!="report"&&fieldId!="profile"&&((kind==L"Edit"&&!(GetWindowLongPtrW(handle,GWL_STYLE)&ES_READONLY))||kind==L"ComboBox"))editable.arr().push_back(fieldId);}return J::object({{"open",true},{"editable_fields",editable},{"actions",available},{"draft",draft},{"selected_state",selected},{"selected_channel",channel},{"selected_key",key},{"validated",!validated.null()&&validSerial==serial},{"busy",busy},{"playing",playing},{"message",utf8(message)},{"fields",values},{"preview",player?player->summary():J()},{"document_unchanged",observed==app.tokens()}});}
-    static LRESULT CALLBACK proc(HWND h,UINT m,WPARAM w,LPARAM l){auto self=reinterpret_cast<SceneEditor*>(GetWindowLongPtrW(h,GWLP_USERDATA));if(m==WM_NCCREATE){self=static_cast<SceneEditor*>(reinterpret_cast<CREATESTRUCTW*>(l)->lpCreateParams);SetWindowLongPtrW(h,GWLP_USERDATA,LONG_PTR(self));}if(!self)return DefWindowProcW(h,m,w,l);switch(m){case WM_CLOSE:self->done=true;return 0;case WM_SIZE:self->arrange();return 0;case WM_GETMINMAXINFO:{auto p=reinterpret_cast<MINMAXINFO*>(l);p->ptMinTrackSize={self->D(1000),self->D(650)};return 0;}case WM_COMMAND:if(LOWORD(w)>=21001&&LOWORD(w)<=21003)self->safe([&]{if(LOWORD(w)==21001)self->validate();else self->preview(LOWORD(w)==21002?"state":"process");});if(LOWORD(w)==IDOK)self->safe([&]{self->apply();});if(LOWORD(w)==IDCANCEL)self->done=true;return 0;case WM_TIMER:if(self->playing&&self->player){double now=milliseconds(),delta=pf::clamp(now-self->last,0.,500.);self->last=now;self->player->advance(delta);self->clock=self->player->clock();if(self->player->finished)self->playing=false;self->drawSample();}return 0;case WM_ERASEBKGND:return 1;case WM_PAINT:{PAINTSTRUCT ps;HDC dc=BeginPaint(h,&ps);RECT r;GetClientRect(h,&r);fill(dc,r,RGB(37,41,50));SelectObject(dc,self->app.font);text(dc,L"状态 · 通道 · 关键帧（独立草稿）",{self->D(12),0,r.right,self->D(32)},RGB(229,234,245));text(dc,self->message,{self->D(12),r.bottom-self->D(72),r.right-self->D(10),r.bottom-self->D(40)},RGB(183,200,226),DT_LEFT|DT_TOP|DT_WORDBREAK);EndPaint(h,&ps);return 0;}}return DefWindowProcW(h,m,w,l);}
+    static LRESULT CALLBACK proc(HWND h,UINT m,WPARAM w,LPARAM l){auto self=reinterpret_cast<SceneEditor*>(GetWindowLongPtrW(h,GWLP_USERDATA));if(m==WM_NCCREATE){self=static_cast<SceneEditor*>(reinterpret_cast<CREATESTRUCTW*>(l)->lpCreateParams);SetWindowLongPtrW(h,GWLP_USERDATA,LONG_PTR(self));}if(!self)return DefWindowProcW(h,m,w,l);switch(m){case WM_CLOSE:self->done=true;return 0;case WM_SIZE:self->arrange();return 0;case WM_GETMINMAXINFO:{auto p=reinterpret_cast<MINMAXINFO*>(l);p->ptMinTrackSize={self->D(1000),self->D(650)};return 0;}case WM_COMMAND:if(LOWORD(w)>=21001&&LOWORD(w)<=21003)self->safe([&]{if(LOWORD(w)==21001)self->validate();else self->preview(LOWORD(w)==21002?"state":"process");});if(LOWORD(w)==IDOK)self->safe([&]{self->apply();});if(LOWORD(w)==IDCANCEL)self->done=true;return 0;case WM_TIMER:if(self->playing&&self->player){double now=milliseconds(),delta=pf::clamp(now-self->last,0.,500.);self->last=now;self->player->advance(delta);self->clock=self->player->clock();if(self->player->finished)self->playing=false;self->drawSample();}return 0;case WM_ERASEBKGND:return 1;case WM_PAINT:{PAINTSTRUCT ps;HDC dc=BeginPaint(h,&ps);RECT r;GetClientRect(h,&r);bufferedPaint(dc,ps.rcPaint,[&](HDC out){fill(out,r,RGB(37,41,50));SelectObject(out,self->app.font);text(out,L"状态 · 通道 · 关键帧（独立草稿）",{self->D(12),0,r.right,self->D(32)},RGB(229,234,245));text(out,self->message,{self->D(12),r.bottom-self->D(72),r.right-self->D(10),r.bottom-self->D(40)},RGB(183,200,226),DT_LEFT|DT_TOP|DT_WORDBREAK);});EndPaint(h,&ps);return 0;}}return DefWindowProcW(h,m,w,l);}
 };
 std::weak_ptr<SceneEditor> active;
 }

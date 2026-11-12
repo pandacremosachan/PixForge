@@ -105,7 +105,23 @@ struct MinecraftPreview:std::enable_shared_from_this<MinecraftPreview>{
     void arrange(){if(!fields.count("close"))return;RECT r;GetClientRect(hwnd,&r);int left=D(292),right=D(282),top=D(142),bottom=r.bottom-D(105);for(int i=0;i<3;++i){move(pages[i]->hwnd,D(16),top,left-D(24),bottom-top,i==page);move(fields[std::array<const char*,3>{"page_source","page_sampling","page_lighting"}[i]],D(24+i*83),D(100),D(76),D(32));}move(details->hwnd,r.right-right+D(8),D(140),right-D(24),bottom-D(140));move(canvas,left+D(8),D(140),r.right-left-right-D(16),bottom-D(140));
         int y=r.bottom-D(60);move(fields["refresh"],D(24),y,D(134),D(36));move(fields["options"],D(172),y,D(112),D(36));move(fields["batch"],left+D(8),y,D(110),D(36));move(fields["previous"],left+D(130),y,D(84),D(36),sheet.w>0);move(fields["next"],left+D(222),y,D(84),D(36),sheet.w>0);EnableWindow(fields["previous"],batchOffset>0&&!busy);EnableWindow(fields["next"],nextOffset>=0&&!busy);move(fields["reset_camera"],r.right-right-D(100),D(100),D(100),D(30));move(fields["close"],r.right-D(110),y,D(86),D(36));EnableWindow(fields["refresh"],!busy);EnableWindow(fields["batch"],!busy);layoutPages();InvalidateRect(hwnd,nullptr,FALSE);InvalidateRect(canvas,nullptr,FALSE);
     }
-    void drawCanvas(HDC dc,RECT r,bool print=false){fill(dc,r,RGB(55,59,68));if(sheet.w){double scale=pf::min(double(r.right)/sheet.w,double(r.bottom)/sheet.h);int w=int(sheet.w*scale),h=int(sheet.h*scale);imageToDC(dc,sheet,{(r.right-w)/2,(r.bottom-h)/2,(r.right+w)/2,(r.bottom+h)/2},false);return;}if(!scene){SelectObject(dc,regular);text(dc,busy?L"正在准备预览…":L"选择资源并刷新预览",r,mcui::muted,DT_CENTER|DT_VCENTER|DT_SINGLELINE);return;}if(!print&&gpu->draw(*scene,camera,r.right,r.bottom))return;auto image=gpu->available?gpu->readback(*scene,camera,r.right,r.bottom):mcRaster(*scene,camera,r.right,r.bottom);imageToDC(dc,image,r,false);}
+    void drawCanvas(HDC target,RECT r,bool print=false){
+        if(IsRectEmpty(&r))return;
+        if(!print&&!sheet.w&&scene&&gpu->draw(*scene,camera,r.right,r.bottom))return;
+        bufferedPaint(target,r,[&](HDC dc){
+            if(sheet.w||!scene)fill(dc,r,RGB(55,59,68));
+            if(sheet.w){
+                double scale=pf::min(double(r.right)/sheet.w,double(r.bottom)/sheet.h);
+                int w=int(sheet.w*scale),h=int(sheet.h*scale);
+                imageToDC(dc,sheet,{(r.right-w)/2,(r.bottom-h)/2,(r.right+w)/2,(r.bottom+h)/2},false);
+            }else if(!scene){
+                SelectObject(dc,regular);text(dc,busy?L"正在准备预览…":L"选择资源并刷新预览",r,mcui::muted,DT_CENTER|DT_VCENTER|DT_SINGLELINE);
+            }else{
+                auto image=print&&gpu->available?gpu->readback(*scene,camera,r.right,r.bottom):mcRaster(*scene,camera,r.right,r.bottom);
+                imageToDC(dc,image,r,false);
+            }
+        });
+    }
     void paint(HDC dc){RECT r;GetClientRect(hwnd,&r);fill(dc,r,mcui::background);SelectObject(dc,heading);text(dc,L"模型与渲染预览",{D(24),D(14),r.right-D(280),D(48)},mcui::foreground);SelectObject(dc,regular);text(dc,L"Forge 1.20.1  ·  资源模型、采样和光照",{D(25),D(53),r.right-D(300),D(78)},mcui::muted);text(dc,L"只读预览  /  原始像素",{r.right-D(230),D(28),r.right-D(24),D(60)},mcui::accent,DT_RIGHT|DT_VCENTER|DT_SINGLELINE);
         fill(dc,{D(16),D(140),D(284),r.bottom-D(105)},mcui::panel);fill(dc,{r.right-D(274),D(100),r.right-D(16),r.bottom-D(105)},mcui::panel);SelectObject(dc,bold);text(dc,L"像素密度与资源检查",{r.right-D(258),D(105),r.right-D(30),D(135)},mcui::foreground);SelectObject(dc,regular);text(dc,L"拖动旋转 · 滚轮缩放",{D(307),D(102),r.right-D(400),D(130)},mcui::muted);
         text(dc,message,{D(24),r.bottom-D(98),r.right-D(24),r.bottom-D(72)},busy?mcui::accent:dirty?mcui::amber:mcui::green,DT_LEFT|DT_VCENTER|DT_SINGLELINE|DT_END_ELLIPSIS);

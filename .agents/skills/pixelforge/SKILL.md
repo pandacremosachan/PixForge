@@ -7,7 +7,9 @@ description: 用 PixForge 制作或修改像素画、Minecraft 材质、GUI、�
 
 [放置目录](INSTALL.md)决定此技能仅对当前项目可用，还是对当前用户的所有 Codex 项目可用。
 
-PixForge 的工作台和命令由同一个常驻 `PixForgeNative.exe` 提供。先连接当前工程的 `R/commands.json`；会话尚未启动时，以技能目录解析 `runtime/windows-x64/PixForgeNative.exe`，在后台启动一次 `serve`。后续用宿主的 HTTP 客户端向同一实例发送命令，无需 Python 客户端或 MCP。
+AI 通过命令绘制材质，用户在工作台查看同一份作品。材质页直接显示画板、绘图工具、调色板和图层；模型页直接显示视角和各形状的开关。有动画时出现播放条。
+
+工作台和命令由同一个常驻 `PixForgeNative.exe` 提供。先连接当前工程的 `R/commands.json`；会话尚未启动时，以技能目录解析 `runtime/windows-x64/PixForgeNative.exe`，在后台启动一次 `serve`。后续用宿主的 HTTP 客户端向同一实例发送命令，无需 Python 客户端或 MCP。
 
 启动时指定消费项目 `--workspace W` 和已有会话 `--runtime R`。下文的 `project state` 等命令名表示发给该会话的 `group` 和 `command`。按需用 `project info` 核对平台与能力，或读取对应动作的 HTTP 帮助查询参数。
 
@@ -54,4 +56,4 @@ PixForge 的工作台和命令由同一个常驻 `PixForgeNative.exe` 提供。�
 - Minecraft：[资源与导出](references/minecraft-assets.md)、[资源机制](references/game-assets.md)、[模型预览](references/minecraft-preview.md)、[静态注册](references/forge-static.md)、[运行时接入](references/forge-runtime.md)。
 - 动态与数据：[播放定义](references/animation-review.md)、[场景协议](references/scene-animation.md)、[游戏回归](references/runtime-678.md)、[数据材质](references/material-data.md)。
 
-基线为 **PixForge 4.1.1 / 命令版本 4**。随包程序面向 **Windows x64**，内置 Minecraft 导出适配 **Java 1.20.1 / Forge**；其他平台或游戏版本先核对可用程序与项目适配器。
+基线为 **PixForge 4.2.3 / 命令版本 4**。随包程序面向 **Windows x64**，内置 Minecraft 导出适配 **Java 1.20.1 / Forge**；其他平台或游戏版本先核对可用程序与项目适配器。

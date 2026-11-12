@@ -3,7 +3,7 @@
 The standalone application owns these capabilities. The companion skill uses the
 application commands only. Command contract 4 is used; additional capabilities
 are `minecraft-animation/v1` and `minecraft-regression/v1`.
-The native entry is **资源 → Minecraft 动画与场景回归…**.
+The native entry is `workbench editor --editor-kind regression --operation open`.
 Inspection and previews are read only. Applying settings uses the same document
 tokens, undo history and save/recovery mechanism as the existing editors.
 Formal asset/code export retains its current-version review/approval checks.

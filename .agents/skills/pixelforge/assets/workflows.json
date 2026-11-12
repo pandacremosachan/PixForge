@@ -1,7 +1,7 @@
 {
   "schema": "pixforge.skill-workflows/v1",
-  "skill_version": "3.1.2",
-  "software_baseline": "4.1.1",
+  "skill_version": "3.2.3",
+  "software_baseline": "4.2.3",
   "public_api_version": 4,
   "recipes": [
     {

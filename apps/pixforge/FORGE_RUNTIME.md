@@ -24,7 +24,7 @@ Target configuration adds an optional runtime object; no existing project is ass
 ```
 
 Use the existing minecraft configure --settings target-object and guarded document/revision tokens.
-The native **资源 → Minecraft 目标、资源与检查…** dialog can derive a draft from the current scene. In 2.4.1, use the **Forge 接入** page for structured package/version and scene block/render-layer fields; **编辑完整 JSON…** opens the full configuration in a separate editor. The **检查结果** page separates diagnostics, files, overrides and required project hooks, and opens generated code in a read-only file viewer. These views retain the same draft, validation fingerprint and undo behavior.
+The native `workbench editor --editor-kind target --operation open` dialog can derive a draft from the current scene. In 2.4.1, use the **Forge 接入** page for structured package/version and scene block/render-layer fields; **编辑完整 JSON…** opens the full configuration in a separate editor. The **检查结果** page separates diagnostics, files, overrides and required project hooks, and opens generated code in a read-only file viewer. These views retain the same draft, validation fingerprint and undo behavior.
 `minecraft check --include-generated-code true` exposes the generated Java, build entry points and runtime definition before approval.
 It is read only and does not write an export. The native **查看生成代码与接线说明（只读）** action provides the same draft preview.
 `workflow-review` includes this code in its `minecraft.json` evidence; code/template and source dependency changes invalidate the reviewed fingerprint.

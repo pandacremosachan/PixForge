@@ -2,7 +2,7 @@
 
 The command contract exposes the optional `minecraft-assets/v1` capability. The first target is **Forge / Minecraft Java 1.20.1**, using resource-pack format **15**. Parsing, validation, source precedence, asset generation and publication belong to the application. No skill files or modules are needed.
 
-The native desktop exposes **资源 → Minecraft 目标、资源与检查…**. The dialog edits an independent draft: validate it, inspect issues and sources, then apply one undoable operation. Cancelling leaves the project untouched. The same core operations are available through executable commands. Formal exports remain gated by current evidence, real user approval and current dependency fingerprints.
+The native desktop exposes `workbench editor --editor-kind target --operation open`. The dialog edits an independent draft: validate it, inspect issues and sources, then apply one undoable operation. Cancelling leaves the project untouched. The same core operations are available through executable commands. Formal exports remain gated by current evidence, real user approval and current dependency fingerprints.
 
 PixForge 2.4.1 organizes this dialog into **目标配置**, **资源来源**, **Forge 接入**, and **检查结果** pages. Package/version/block/render-layer settings are edited directly; complete runtime JSON and entry arrays have separate resizable editors. Reports switch between issues, effective files, overrides and project hooks, while generated source opens in a dedicated read-only file browser. Check/apply/cancel remain in a persistent footer. Compact windows scroll only the active page and reveal keyboard-focused controls automatically.
 

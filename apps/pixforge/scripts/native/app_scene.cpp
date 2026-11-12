@@ -8,10 +8,17 @@ void App::resetScenePlayer(){
 }
 void App::syncStateControls(bool rebuild){
     if(!sceneStateCombo)return;
-    if(rebuild){SendMessageW(sceneStateCombo,CB_RESETCONTENT,0,0);if(scenePlayer)for(auto& clip:state["scene_animation"]["states"].arr()){auto label=wide(clip["label"].str());SendMessageW(sceneStateCombo,CB_ADDSTRING,0,LPARAM(label.c_str()));}}
-    if(scenePlayer){if(GetFocus()!=sceneStateCombo)for(size_t i=0;i<state["scene_animation"]["states"].size();++i)if(state["scene_animation"]["states"][i]["id"].str()==scenePlayer->state)comboSet(sceneStateCombo,int(i));EnableWindow(handles["state_start"],!scenePlayer->route("start").empty());EnableWindow(handles["state_stop"],!scenePlayer->route("stop").empty());}
-    for(auto name:{"state_preview","state_demo","loop"})if(handles.count(name))InvalidateRect(handles[name],nullptr,FALSE);
-    if(timeline)timeline->redraw();
+    const auto& states=static_cast<const J&>(state)["scene_animation"]["states"];int index=-1;
+    if(scenePlayer){
+        if(scenePlayer->sequenceMode)index=int(states.size());
+        else for(size_t i=0;i<states.size();++i)if(states[i]["id"].str()==scenePlayer->state){index=int(i);break;}
+    }
+    if(rebuild){
+        std::vector<std::wstring> names;
+        if(scenePlayer){for(const auto& clip:states.arr())names.push_back(wide(clip["label"].str()));names.push_back(L"完整流程");}
+        playbackStates.set(sceneStateCombo,std::move(names),index);
+    }else comboSet(sceneStateCombo,index);
+    syncPlayback();
 }
 void App::programTextureStep(){
     if(!scenePlayer||!loaded)return;auto control=sceneTextureControl(state["scene_animation"],elapsed,scenePlayer->view());auto& steps=state["animation"]["steps"];int found=0;
@@ -23,9 +30,9 @@ void App::programTextureStep(){
 void App::stateAction(const std::string& action,const std::string& identity,bool resume){
     if(!scenePlayer||!loaded||!canWrite())return;
     if(action=="preview")scenePlayer->select(identity);else if(action=="demo")scenePlayer->beginSequence(true);else if(action=="leave_demo")scenePlayer->sequenceMode=false;else scenePlayer->event(action);
-    elapsed=scenePlayer->clock();playStart=milliseconds();playing=resume;programTextureStep();syncStateControls();renderKey.clear();layout();requestRender();InvalidateRect(handles["play"],nullptr,FALSE);
+    elapsed=scenePlayer->clock();playStart=milliseconds();playing=resume;programTextureStep();syncStateControls();renderKey.clear();layout();requestRender();syncPlayback();
 }
 void App::advanceProgram(double delta){
-    if(!scenePlayer)return;auto previous=scenePlayer->generation;scenePlayer->advance(pf::clamp(delta,0.,120000.));elapsed=scenePlayer->clock();programTextureStep();if(scenePlayer->finished){playing=false;InvalidateRect(handles["play"],nullptr,FALSE);}if(previous!=scenePlayer->generation)syncStateControls();
+    if(!scenePlayer)return;auto previous=scenePlayer->generation;scenePlayer->advance(pf::clamp(delta,0.,120000.));elapsed=scenePlayer->clock();programTextureStep();if(scenePlayer->finished){playing=false;syncPlayback();}if(previous!=scenePlayer->generation)syncStateControls();
 }
 }

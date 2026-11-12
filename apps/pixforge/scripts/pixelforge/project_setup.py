@@ -4,7 +4,7 @@ from fractions import Fraction
 import math
 
 from .model_uv import describe
-from .shapes import default_shapes, model as normalize_model
+from .shapes import boxes, default_shapes, model as normalize_model
 
 
 PRESETS = ("cube_faces", "cube_shared", "model", "pixels")
@@ -46,11 +46,11 @@ def _suggest_size(model):
     return sizes, "按 UV 边界建议；可调整像素分辨率"
 
 
-def prepare(settings=None, *, build_shapes=False):
+def prepare(settings=None):
     if settings is None:
         settings = {}
-    if not isinstance(settings, dict) or set(settings) - {"preset", "model", "face_size", "width", "height"}:
-        raise ValueError("新建设置仅支持 preset/model/face_size/width/height")
+    if not isinstance(settings, dict) or set(settings) - {"preset", "model", "face_size", "width", "height", "base_boxes"}:
+        raise ValueError("新建设置仅支持 preset/model/face_size/width/height/base_boxes")
     preset = settings.get("preset", "model" if settings.get("model") is not None else "cube_faces")
     if not isinstance(preset, str):
         raise ValueError("无效新建类型")
@@ -91,28 +91,18 @@ def prepare(settings=None, *, build_shapes=False):
     _size(height, "画布高度")
     shapes = default_shapes()
     shapes["model"] = deepcopy(model)
-    shape_report = None
-    shape_warning = None
-    if model is not None:
-        if build_shapes:
-            from .shape_builder import build_model
-            try:
-                shapes["base"], shape_report = build_model(model)
-            except ValueError as error:
-                shapes["base"] = []
-                shape_report = {"operation": "build-from-model", "built": False, "reason": str(error)}
-                shape_warning = "模型 UV 已保留；形状需单独构建：" + str(error)
-        else:
-            shapes["base"] = []  # Plan preview bounds come from the chosen geometry alone.
+    if "base_boxes" in settings:
+        shapes["base"] = boxes(settings["base_boxes"])
+        normalized["base_boxes"] = deepcopy(shapes["base"])
+    elif preset in ("model", "pixels"):
+        shapes["base"] = []
     mapping = describe(model, [width, height])
     warnings = []
-    if shape_warning:
-        warnings.append(shape_warning)
     if mapping["shared_region_count"]:
         warnings.append("部分 UV 被多个面共用，绘制这些区域会同时改变对应面。")
     if model and any(any(n < 0 or n > 16 for n in face["uv"]) for face in mapping["faces"]):
         warnings.append("存在超出 0..16 的 UV，按模型定义在当前纹理帧内重复采样。")
     return {"schema": "pixelforge.project-plan/v1", "preset": preset,
             "settings": normalized, "canvas_size": [width, height], "size_source": source,
-            "shapes": shapes, "uv_map": mapping, "shape_report": shape_report,
+            "shapes": shapes, "uv_map": mapping, "shape_report": None,
             "warnings": warnings, "pixels": "transparent; UV guides are view-only"}

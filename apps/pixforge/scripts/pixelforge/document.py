@@ -575,7 +575,7 @@ class Document:
         """Prepare completely before replacing the old document; commit one new identity."""
         self.guard(observed=False)
         from .project_setup import prepare
-        plan = prepare(settings, build_shapes=True)
+        plan = prepare(settings)
         # new() allocates/validates the blank canvas before recovery/replacement.
         self.new(*plan["canvas_size"])
         self.shapes = deepcopy(plan["shapes"])

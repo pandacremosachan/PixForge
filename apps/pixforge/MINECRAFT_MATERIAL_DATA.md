@@ -4,7 +4,7 @@ The Forge 1.20.1 workflow supports explicit `labpbr-1.3` data maps. The color at
 
 ## Desktop
 
-Open **资源 → LabPBR 数据材质与通道…**, or run `打开LabPBR数据材质示例.cmd`. Enable LabPBR, select normal/specular and a channel, then choose **查看与检查**. The channel image is opaque grayscale, including the alpha channel. Clicking it reports all eight raw bytes and decoded meanings. Packed RGB, reconstructed normal Z and semantic views are diagnostic views. They do not show the final shader's lighting.
+Use workbench editor --editor-kind material; operation=open for the native data view, or minecraft material-inspect to inspect normal/specular, individual channels and decoded values. The channel image is opaque grayscale, including alpha. Pixel inspection reports all eight raw bytes and their meanings. Packed RGB, reconstructed normal Z and semantic views are diagnostics; they do not show the final shader's lighting.
 
 The default canvas tool only inspects. The numeric brush replaces the selected byte plane with an integer from 0 to 255. A complete stroke or exact rectangle is one undo entry; the other seven planes and color atlas retain their bytes. The shader/resource page imports a complete PNG or its red plane into the selected channel. Imports require the exact atlas dimensions and 8-bit PNG input; no resizing or color-profile conversion is applied. A new normal map starts at `(128,128,255,255)` and a new specular map at `(0,10,0,255)`.
 
@@ -37,20 +37,26 @@ The included **PixForge LabPBR Probe 1.0.0** is an owned diagnostic shader with 
 
 ## Public interface
 
-Discover `minecraft-material/v1` through `--describe`. Existing public API major 1 is retained. CLI examples below use the same absolute runtime as the GUI; mutations also require the current document/revision tokens and the application's AI workflow readiness.
+Discover `minecraft-material/v1` through project info. Command contract 4 is used. application commands use the same runtime as the GUI; mutations also require the current document/revision tokens and the application's AI workflow readiness.
 
-```powershell
-PixForgeNative.exe --cli session --runtime D:/project/.runtime/pixforge minecraft-material --role specular --channel a --pixel 2 3 --output D:/review/emission.png
-PixForgeNative.exe --cli session --runtime D:/project/.runtime/pixforge minecraft-material-configure --settings '{"profile":"labpbr-1.3"}' --expected-document-id ID --expected-revision REV
-PixForgeNative.exe --cli session --runtime D:/project/.runtime/pixforge minecraft-material-import --role normal --path D:/assets/normal.png --expected-document-id ID --expected-revision REV
-PixForgeNative.exe --cli session --runtime D:/project/.runtime/pixforge minecraft-material-edit --role specular --channel a --operations '[{"rect":[2,3,1,1],"value":0}]' --expected-document-id ID --expected-revision REV
+执行 `minecraft material-inspect --request-file <参数.json>`：
+
+```json
+{
+  "role": "specular",
+  "channel": "a",
+  "pixel": [
+    2,
+    3
+  ]
+}
 ```
 
-Use `@file` or `-` for JSON settings/operations when shell quoting is inconvenient. Setting material configuration to `null` clears data maps as an undoable operation. MCP provides `inspect_minecraft_material`, `configure_minecraft_material`, `import_minecraft_material`, and `edit_minecraft_material`; inspection returns JSON and a PNG. Native window automation is available through the app-owned `ui minecraft-material-editor` API. No computer-use tool is required.
+Pass settings and operations as JSON values to the application commands. Setting material configuration to null clears data maps as one undoable operation. minecraft material-inspect, minecraft material-configure, minecraft material-import and minecraft material-edit handle data inspection and editing; inspection returns JSON and a PNG. Native data-view operations use workbench editor --editor-kind material.
 
 ## Persistence and validation scope
 
-Configured data projects use desktop/session format v4, requiring software 2.7+. Recovery retains v4 while any undo/redo entry contains material data. Older software refuses the format rather than discarding channels. Unconfigured projects retain their prior schemas, and older v1/v2/v3 projects remain readable. Software and skill are separate packages; the standard-library skill client only calls public executable interfaces.
+Configured data projects use desktop/session format v4, requiring software 2.7+. Recovery retains v4 while any undo/redo entry contains material data. Older software refuses the format rather than discarding channels. Unconfigured projects retain their prior schemas, and older v1/v2/v3 projects remain readable. Software and skill are separate packages; the skill calls application commands.
 
 Opt-in Forge game regression exports observe the active OptiFine or Iris/Oculus shader API, actual shader source hash, selected option files, and resource-reload generation at capture start/end. Missing, disabled, changed or mismatched shader evidence prevents comparison. A consuming project can register an observer for its actual loader through `RegressionShader.registerObserver`. An adapter declaration or synthetic fixture is not game evidence.
 

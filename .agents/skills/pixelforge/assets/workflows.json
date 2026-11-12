@@ -1,8 +1,8 @@
 {
   "schema": "pixforge.skill-workflows/v1",
-  "skill_version": "1.8.0",
-  "software_baseline": "2.9.0",
-  "public_api_version": 1,
+  "skill_version": "3.1.2",
+  "software_baseline": "4.1.1",
+  "public_api_version": 4,
   "recipes": [
     {
       "id": "block-shared",
@@ -37,6 +37,11 @@
       "description": "透明平面物品",
       "workflow": "references/workflows/item.md",
       "template": "assets/templates/item",
+      "model_variant": {
+        "preset": "model",
+        "project": "assets/templates/item/project-3d.json",
+        "target": "assets/templates/item/target.json"
+      },
       "capabilities": [
         "minecraft-assets/v1"
       ],

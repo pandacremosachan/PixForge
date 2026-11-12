@@ -1,4 +1,4 @@
-"""Shared native/nearest/background/tile/frame evidence for CLI and MCP edits."""
+"""Shared native/nearest/background/tile/frame evidence for command edits."""
 from .texture_review import animation_preview, preview_sheet
 
 

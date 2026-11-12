@@ -3,18 +3,16 @@
 Does not parse .mcmeta, .pxo, .bbmodel or engine metadata; never invents runtime timing.
 """
 
-import argparse
 import base64
 import hashlib
 import io
 import json
 import math
 from pathlib import Path
-import sys
 
 from PIL import Image
 
-from .texture_review import comparison_image, emit_report, image_comparison, image_geometry, load_png
+from .texture_review import comparison_image, image_comparison, image_geometry, load_png
 
 
 SCHEMA = "pixelforge.animation-review/v1"
@@ -33,8 +31,14 @@ def duration(value):
     return value
 
 
-def load_plan(path):
-    plan = json.loads(path.read_text(encoding="utf-8"))
+def load_plan(value, *, base_directory=None):
+    if isinstance(value, dict):
+        plan = value
+        base = Path(base_directory or Path.cwd()).resolve()
+    else:
+        path = Path(value).resolve()
+        plan = json.loads(path.read_text(encoding="utf-8"))
+        base = path.parent
     if not isinstance(plan, dict) or plan.get("schema") != SCHEMA:
         raise ValueError(f"plan schema must be {SCHEMA}")
     allowed = {"schema", "image", "frame_size", "rectangles", "steps", "loop", "interpolation", "provenance"}
@@ -52,7 +56,7 @@ def load_plan(path):
         raise ValueError("only explicit interpolation 'none' is supported; interpolated engine playback needs a project renderer")
     if "provenance" in plan and not isinstance(plan["provenance"], str):
         raise ValueError("provenance must be text identifying the project metadata/adapter")
-    image_path = (path.parent / plan["image"]).resolve()
+    image_path = (base / plan["image"]).resolve()
     image = load_png(image_path)
     rectangles = plan.get("rectangles")
     if rectangles is None:
@@ -187,34 +191,3 @@ def player_html(report, frames, scale=6):
 def save_player(report, frames, path, scale):
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(player_html(report, frames, scale), encoding="utf-8", newline="\n")
-
-
-def main(argv=None):
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("plan", type=Path)
-    parser.add_argument("--html", type=Path, required=True, help="standalone, lossless PNG player; never the production texture")
-    parser.add_argument("--scale", type=int, choices=range(1, 17), default=6, metavar="1..16")
-    parser.add_argument("--report", type=Path, help="save full JSON and print compact playback metadata; all frames/steps remain checked")
-    args = parser.parse_args(argv)
-    try:
-        plan, image_path, rectangles, frames = load_plan(args.plan)
-        if args.html.resolve() in (args.plan.resolve(), image_path):
-            raise ValueError("HTML output must not overwrite the plan or source PNG")
-        if args.html.suffix.lower() != ".html":
-            raise ValueError("player output must use .html")
-        if args.report and (args.report.suffix.lower() != ".json" or args.report.resolve() in (args.plan.resolve(), image_path, args.html.resolve())):
-            raise ValueError("report must use .json and not overwrite any input or player output")
-        report = build_report(plan, image_path, rectangles, frames)
-        save_player(report, frames, args.html, args.scale)
-        report["html"] = str(args.html.resolve())
-        emit_report(report, args.report, {"input": report["input"], "plan_valid": True, "motion_accepted": None,
-                    "frame_count": len(frames), "playback_steps": len(plan["steps"]), "total_duration_ms": report["total_duration_ms"],
-                    "loop": report["loop"], "unused_frame_count": len(report["unused_frames"]), "html": report["html"]})
-        return 0
-    except (OSError, ValueError, OverflowError) as error:
-        print(f"texture_animation: {error}", file=sys.stderr)
-        return 2
-
-
-if __name__ == "__main__":
-    raise SystemExit(main())

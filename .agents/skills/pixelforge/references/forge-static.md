@@ -1,12 +1,12 @@
 # Forge 1.20.1：把外观接成真实方块或物品
 
-这是**目标适配器指导**，仅用于 Minecraft Java 1.20.1 / Forge / Mojang mappings。skill 的连接和资产制作不依赖该版本。消费项目已有 Registrate、材料自动注册、KubeJS 或其他注册框架时沿用其入口，不另建第二套注册。资源包换皮不执行新注册。
+仅用于 Java 1.20.1 / Forge / Mojang mappings。沿用项目已有注册框架；仅替换资源时不新增注册。
 
 ## 接入顺序
 
-先确认实际 mod id、包名、注册类、主入口 mod event bus、资源源集、datagen provider、创造模式分类和构建任务。下面是普通 Forge 工程的可复制实现；把 examplemod、包路径、类名和资源名换成项目值，并将 register 接到**已有**主入口构造流程。不要新增第二个 @Mod 主入口。DeferredRegister 应挂到 mod event bus，而非全局游戏事件总线。[Forge 注册文档](https://docs.minecraftforge.net/en/1.20.1/concepts/registries/)
+确认实际 mod id、注册类、mod event bus、资源源集和 datagen。下例替换包名/ID 后合入已有主入口；DeferredRegister 挂 mod event bus，不另建 @Mod。[Forge 注册文档](https://docs.minecraftforge.net/en/1.20.1/concepts/registries/)
 
-工作台资源 binding.path 必须与这里的注册名对应。若资产导出后尚未取得源树集成授权，先交付接线差异和 ZIP，保留现有源文件；用户已要求定义/新增对象时按其项目范围完成实际接线。
+binding.path 对应真实注册名。仅制作资源时交付 assets；要求新增游戏对象时完成项目接线。
 
 ## 普通静态方块
 
@@ -55,7 +55,7 @@ public final class PanelContent {
 
 在项目已有主入口的 mod event bus 初始化后调用 `PanelContent.register(modEventBus);`。若该项目已经有 BLOCKS/ITEMS，把对应的两项注册放入原类，不重复注册相同 ID。BlockItem 决定物品栏/放置入口，模型资源不能代替这项注册。
 
-自定义形状改为项目 Block 子类，将工作台 shape-export 的 helper 接到 getShape/getCollisionShape；加入朝向或开关属性时，默认状态、允许状态域、state definition、放置/旋转行为、模型引用必须一同实现。简单空 variant 导出不涵盖这些状态。透明块还需实际渲染机制，发光纹理也不等于方块发光等级；按项目既有方块实现选择，不能靠图片伪造游戏行为。
+自定义形状改为项目 Block 子类，将工作台 asset export-shapes 的 helper 接到 getShape/getCollisionShape；加入朝向或开关属性时，默认状态、允许状态域、state definition、放置/旋转行为、模型引用必须一同实现。简单空 variant 导出不涵盖这些状态。透明块还需实际渲染机制，发光纹理也不等于方块发光等级；按项目既有方块实现选择，不能靠图片伪造游戏行为。
 
 ## 普通材料物品
 
@@ -101,8 +101,8 @@ public final class CrystalContent {
 
 ```json
 {
-  "block.examplemod.panel":"面板",
-  "item.examplemod.crystal":"晶体"
+  "block.examplemod.panel": "面板",
+  "item.examplemod.crystal": "晶体"
 }
 ```
 
@@ -110,12 +110,23 @@ public final class CrystalContent {
 
 ```json
 {
-  "type":"minecraft:block",
-  "pools":[{
-    "rolls":1,
-    "entries":[{"type":"minecraft:item","name":"examplemod:panel"}],
-    "conditions":[{"condition":"minecraft:survives_explosion"}]
-  }]
+  "type": "minecraft:block",
+  "pools": [
+    {
+      "rolls": 1,
+      "entries": [
+        {
+          "type": "minecraft:item",
+          "name": "examplemod:panel"
+        }
+      ],
+      "conditions": [
+        {
+          "condition": "minecraft:survives_explosion"
+        }
+      ]
+    }
+  ]
 }
 ```
 
@@ -125,8 +136,8 @@ public final class CrystalContent {
 
 ## 验证与交付
 
-按项目已有 wrapper 与任务运行所需的编译/资源处理/datagen；普通 Gradle 项目常见为 compileJava、processResources，只有已有 runData 任务时才使用它。不安装全局 JDK、不为验证自动启动游戏。构建后核对成品 JAR 中 assets/data 及实际注册名，避免资源被错误源集排除。
+按项目 wrapper 和既有任务编译、处理资源及必要的 datagen，再核对 JAR 中 assets/data 与注册名。
 
-工作台 minecraft-check 检查其选中资源引用闭包，不检查 Java 注册全域、配方、语言完整性或所有游戏状态。Java 编译通过证明接线类型正确；游戏里能放置/使用、透明排序、掉落行为和实际性能仍需对应运行证据。只修改 skill 时无需为文档示例创建或编译真实消费模组；不要把示例未在某项目编译描述成该项目已经通过。
+minecraft check 只覆盖选中资源引用，Java 编译不覆盖游戏行为。按本次改动分别报告资源、编译和实际运行检查；技能维护不为示例另建消费模组。
 
-交付至少说明：对象 ID、注册/行为修改、原生资产路径、datagen 改动、形状/显示状态、构建结果及游戏验证范围。当前适配器范围之外的版本/框架，保留资产和意图，使用消费项目自己的注册/资源实现，不能将上述 Java 当跨版本代码。
+交付对象 ID、源资产与接线改动、构建结果及未验证范围。其他版本/框架使用项目自己的适配。

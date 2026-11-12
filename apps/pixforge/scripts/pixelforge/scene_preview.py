@@ -60,4 +60,5 @@ def preview(document, options=None):
                 'not_aesthetic_or_game_validation':True}
     return {"state":document.status(),"report":report,
             "image":image_data(contact_sheet(document)),
-            "html":html(document.shapes,document.canvas,document.animation,metadata,scene=document.scene_animation)}
+            "html":html(document.shapes,document.canvas,document.animation,metadata,scene=document.scene_animation,
+                        view={"size":520,"yaw":35,"pitch":28,"overlays":[],"show_model":True})}

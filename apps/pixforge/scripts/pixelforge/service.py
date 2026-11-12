@@ -1,22 +1,25 @@
-"""Headless session host and discovery. Uses Pillow, never imports Qt."""
+"""Persistent project and command host inside the native application."""
+import json
 import os
 from pathlib import Path
 import signal
-import subprocess
-import sys
 import time
+import threading
 
-from .document import StudioError
 from .session import Session
 from .studio_bridge import StudioBridge, StudioClient, runtime_path
 
 
-def serve(workspace=None, runtime=None):
+def serve(workspace=None, runtime=None, workbench=False):
     workspace = Path(workspace or Path.cwd()).resolve()
     runtime = runtime_path(workspace, runtime)
+    workspace.mkdir(parents=True, exist_ok=True)
+    os.chdir(workspace)  # File parameters resolve in the bound workspace, as for CLI-created sessions.
     bridge = StudioBridge(runtime, mode="headless")
     session = None
     stopping = False
+    command_lock = threading.Lock()
+    commands = None
 
     def stop(*_):
         nonlocal stopping
@@ -29,13 +32,40 @@ def serve(workspace=None, runtime=None):
             return {"state": session.document.status()}
         return session.call(payload.get("action", "status"), **{k: v for k, v in payload.items() if k != "action"})
 
+    def execute_command(payload):
+        nonlocal commands
+        if not command_lock.acquire(blocking=False):
+            return {"ok": False, "error": "另一个命令仍在执行；读取状态后再继续", "code": "BUSY"}
+        try:
+            from .commands import build_commands
+            from .command_output import artifacts
+            if commands is None:
+                commands = build_commands(StudioClient(runtime), workspace=workspace, runtime=runtime)
+            result = commands["dispatch"](payload.get("group"), payload.get("command"), payload.get("params"))
+            return {**artifacts(result.data, runtime), "ok": not result.is_error}
+        except (ValueError, OSError, KeyError, TypeError) as error:
+            return {"ok": False, "error": str(error), "code": getattr(error, "code", "INVALID_ARGUMENT")}
+        finally:
+            command_lock.release()
+
     try:
         session = Session(workspace, runtime)
         session.persist()
+        initial_window = None
+        if workbench:
+            from .native_launcher import open_window
+            initial_window = open_window(workspace, runtime)
+        bridge.publish_commands(workspace, execute_command)
+        print(json.dumps({"ok": True, "pid": bridge.commands.record["pid"],
+                          "connection_file": str(bridge.commands.path)}), flush=True)
         for sig in (signal.SIGINT, signal.SIGTERM):
             signal.signal(sig, stop)
         while not stopping:
             bridge.pump(execute)
+            if initial_window is not None and initial_window.done():
+                if initial_window.result():
+                    raise RuntimeError("Could not open the PixForge workbench")
+                initial_window = None
             time.sleep(.015)
     finally:
         if session is not None:
@@ -44,24 +74,3 @@ def serve(workspace=None, runtime=None):
             session.persist()
         bridge.close()
     return 0
-
-
-def ensure_session(workspace=None, runtime=None):
-    workspace = Path(workspace or Path.cwd()).resolve()
-    runtime = runtime_path(workspace, runtime)
-    client = StudioClient(runtime)
-    if client.alive():
-        return client
-    runtime.mkdir(parents=True, exist_ok=True)
-    command = [sys.executable, "-B", "-m", "pixelforge", "serve", "--workspace", str(workspace), "--runtime", str(runtime)]
-    flags = (subprocess.CREATE_NO_WINDOW | subprocess.CREATE_NEW_PROCESS_GROUP) if os.name == "nt" else 0
-    with (runtime / "service.log").open("ab") as log:
-        subprocess.Popen(command, stdin=subprocess.DEVNULL, stdout=log, stderr=log,
-                         creationflags=flags, start_new_session=os.name != "nt", cwd=workspace)
-    for _ in range(100):
-        if client.alive():
-            # The server publishes its address before restoring durable state.
-            client.call("status")
-            return client
-        time.sleep(.1)
-    raise StudioError("会话启动失败，请查看 runtime/service.log", "SESSION_UNAVAILABLE")

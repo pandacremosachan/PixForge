@@ -1,11 +1,25 @@
 <!doctype html><html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>PixForge · 模型与形状预览</title><style>
 *{box-sizing:border-box}body{margin:0;background:#10151e;color:#dce5ef;font:15px/1.6 system-ui,"Microsoft YaHei",sans-serif}main{max-width:1180px;margin:auto;padding:28px}h1{font-size:26px;margin:0}p{color:#a9b9cb}section{display:grid;grid-template-columns:minmax(360px,600px) minmax(300px,1fr);gap:24px}canvas{width:100%;background:#141b25;border:1px solid #2b3748;border-radius:12px;touch-action:none;cursor:grab}aside{background:#19212d;border:1px solid #2b3748;border-radius:12px;padding:22px}label{display:block;margin:12px 0}input[type=range]{width:100%}button,select{background:#28374b;color:#edf5ff;padding:8px 14px;border:1px solid #49607d;border-radius:6px;margin-right:7px;cursor:pointer}pre{font-size:12px;white-space:pre-wrap;overflow-wrap:anywhere;color:#9db2cb}small{color:#94a7be}.legend{display:flex;gap:16px}.legend label{display:inline-block}.readout{max-height:260px;overflow:auto}a{color:#78d7e9}@media(max-width:780px){section{display:block}aside{margin-top:16px}main{padding:14px}}
-</style><main><h1 id="projectTitle">模型与形状叠加预览</h1><p>拖动模型旋转；分别查看基础形状、碰撞和选中轮廓。线框穿透显示，几何与游戏光照效果需在接入后核对。</p><section><div><canvas id="view" width="520" height="520"></canvas><div class="legend"><label style="color:#ffca68"><input id="base" type="checkbox">基础</label><label style="color:#ff678b"><input id="collision" type="checkbox" checked>碰撞</label><label style="color:#62e5ff"><input id="selection" type="checkbox">选中</label><label><input id="model" type="checkbox" checked>模型</label></div></div><aside><div><button id="play">播放</button><button id="iso">立体</button><button id="top">顶视</button><button id="front">正视</button></div><div id="stateControls" hidden><label>状态预览<select id="state"></select></label><button id="stateStart">启动</button><button id="stateStop">停机</button><button id="stateDemo">完整流程</button></div><label>模型朝向 <span id="angle"></span><input id="yaw" type="range" min="-180" max="180" value="35"></label><label>俯仰角<input id="pitch" type="range" min="-89" max="90" value="30"></label><label id="frameLabel">动画帧<input id="frame" type="range" min="0" value="0"></label><p id="mode"></p><div class="readout"><pre id="summary"></pre><pre id="boxes"></pre></div><p><small>形状坐标以 16 为一格。默认碰撞和选中继承基础形状；独立空列表表示无形状。JSON 是 PixForge 数据，原版资源包不改变碰撞；Java 适配器需要接入已注册方块。</small></p><pre id="identity"></pre></aside></section></main>
+</style><main><h1 id="projectTitle">模型与形状叠加预览</h1><p>拖动模型旋转；分别查看基础形状、碰撞和选中轮廓。线框穿透显示，几何与游戏光照效果需在接入后核对。</p><section><div><canvas id="view" width="520" height="520"></canvas><div class="legend"><label style="color:#ffca68"><input id="base" type="checkbox">基础</label><label style="color:#ff678b"><input id="collision" type="checkbox">碰撞</label><label style="color:#62e5ff"><input id="selection" type="checkbox">选中</label><label><input id="model" type="checkbox">模型</label></div></div><aside><div><button id="play">播放</button><button id="iso">立体</button><button id="top">顶视</button><button id="front">正视</button></div><div id="stateControls" hidden><label>状态预览<select id="state"></select></label><button id="stateStart">启动</button><button id="stateStop">停机</button><button id="stateDemo">完整流程</button></div><label>模型朝向 <span id="angle"></span><input id="yaw" type="range" min="-180" max="180"></label><label>俯仰角<input id="pitch" type="range" min="-89" max="90"></label><label id="frameLabel">动画帧<input id="frame" type="range" min="0" value="0"></label><p id="mode"></p><div class="readout"><pre id="summary"></pre><pre id="boxes"></pre></div><p><small>形状坐标以 16 为一格。默认碰撞和选中继承基础形状；独立空列表表示无形状。JSON 是 PixForge 数据，原版资源包不改变碰撞；Java 适配器需要接入已注册方块。</small></p><pre id="identity"></pre></aside></section></main>
 <script>
 'use strict';/*SCENE_RUNTIME*/
 const data=/*DATA*/null;
-const $=id=>document.getElementById(id),cv=$('view'),ctx=cv.getContext('2d'),size=cv.width;
+const $=id=>document.getElementById(id),cv=$('view'),size=data.view.size;
+cv.width=cv.height=size;
+const ctx=cv.getContext('2d');
+for(const id of ['yaw','pitch']){
+ const input=$(id),angle=data.view[id];
+ input.min=Math.min(+input.min,angle);input.max=Math.max(+input.max,angle);input.step='any';input.value=angle;
+}
+for(const id of ['base','collision','selection'])$(id).checked=data.view.overlays.includes(id);
+$('model').checked=data.view.show_model;
+if(data.inventory){
+ const figure=document.createElement('figure'),caption=document.createElement('figcaption'),icon=new Image(128,128);
+ caption.textContent='物品栏';icon.alt='物品栏中的实际模型';icon.style.imageRendering='pixelated';
+ icon.src='data:image/png;base64,'+data.inventory;figure.style.margin='0 0 16px';
+ figure.append(caption,icon);document.querySelector('aside').prepend(figure);
+}
 let frames=[],step=0,running=false,start=0,drag=null,sceneAt=0,lastTick=0,lastAdvance=0;
 const player=SceneRuntime.isProgram(data.scene)?new SceneRuntime.Player(data.scene):null;
 const sceneView=()=>player?player.view():null,sceneClip=()=>player?player.clip:data.scene,sceneDuration=()=>player?(player.sequenceMode?data.scene.duration_ms:player.clip.duration_ms):data.scene?data.scene.duration_ms:0;

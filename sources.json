@@ -1,7 +1,7 @@
 {
   "pixelforge": {
     "origin": "existing user-level PixForge skill",
-    "tool_version": "2.9.0",
+    "tool_version": "4.1.1",
     "license": "not declared in original installation",
     "capabilities": [
       "static pixels",
@@ -11,21 +11,24 @@
       "all-frame vertical animation checks",
       "lossless timed playback from explicit project-derived animation plans",
       "structure/mask/palette workflows and model UV/state review guidance",
-      "atomic script batches and non-mutating dry-run previews",
-      "shared CLI/MCP native, background, tile and all-frame evidence",
+      "atomic drawing batches and non-mutating dry-run previews",
+      "shared command native, background, tile and all-frame evidence",
       "content-bound visual review records with stale-input and evidence detection",
       "shared desktop canvas, RGBA layers, manual tools and global undo/redo",
-      "authenticated local MCP/CLI session with document and revision conflict guards",
+      "authenticated local command session with document and revision conflict guards",
       "in-memory timed animation playback, tiling, backgrounds and onion skin",
       "editable project persistence, recovery and user feedback visible to AI",
       "user-confirmed native PNG export bound to current pixels and animation timing",
+      "Qt workspace with PixiEditor-inspired layout, independent icons, color wheel and layer thumbnails",
       "frame-scoped pencil, eraser, fill, shapes and horizontal/vertical mirrored drawing",
       "lossless multi-layer frame insertion, duplication, deletion and explicit playback ordering",
-      "equivalent headless CLI/MCP drawing, lossless animation review, chat approval and export",
+      "frontend-independent Document and durable Session core without Qt imports",
+      "equivalent headless command drawing, lossless animation review, chat approval and export",
       "optional GUI attaches to shared core with remote manual stroke leases and global history",
       "persistent headless session recovery with monotonic revision across restarts",
       "shared base AABB shapes with independent collision/selection inheritance and explicit empty overrides",
       "atomic shape editing, embedded single-atlas Java elements model and shared approval/history/recovery",
+      "Pillow model/shape overlays and portable interactive timed HTML without Qt or computer automation",
       "neutral shape JSON and explicit Forge 1.20.1 Mojmap Java helper export",
       "optional GUI model/shape editor using the same independent core",
       "bounded maximal-box cover with exact union packing and explicit conservative model-distance approximation",
@@ -57,7 +60,7 @@
       "repository": "https://github.com/yangsir2077/pixel-loom",
       "commit": "5b77d8def0ffec3e05d59bfa88bea4998aeeedb1",
       "license": "MIT",
-      "implementation": "independent CLI/.px extensions and Python desktop; no upstream code or assets copied",
+      "implementation": "independent pixel-batch extensions and desktop; no upstream code or assets copied",
       "reference": ".agents/skills/pixelforge/references/transactions-review.md",
       "desktop_reference": ".agents/skills/pixelforge/references/desktop.md"
     },
@@ -80,8 +83,8 @@
     },
     "software_source": "apps/pixforge",
     "skill_source": ".agents/skills/pixelforge",
-    "skill_version": "1.8.0",
-    "public_api_version": 1,
+    "skill_version": "3.1.2",
+    "public_api_version": 4,
     "minecraft_assets": {
       "capability": "minecraft-assets/v1",
       "profile": "forge-1.20.1",
@@ -95,7 +98,7 @@
       "minecraft": "1.20.1",
       "java_release": 17,
       "default_compile_baseline": "47.2.0",
-      "implementation": "application-owned scene state player, BER, particle provider and snapshot codec; skill uses public interfaces only",
+      "implementation": "application-owned generated Java rules, state player, geometry loader, BER, particle provider and snapshot codec; skill uses public interfaces only",
       "reference": "https://docs.minecraftforge.net/en/1.20.1/rendering/modelloaders/bakedmodel/",
       "in_game_validated": false
     },
@@ -117,6 +120,12 @@
       "ownership": "standalone application; skill calls only public interfaces",
       "third_party_research_assets_included": false,
       "in_game_validated": false
+    },
+    "distribution": {
+      "portable": true,
+      "platform": "windows-x64",
+      "application": ".agents/skills/pixelforge/runtime/windows-x64/PixForgeNative.exe",
+      "installation_required": false
     }
   }
 }

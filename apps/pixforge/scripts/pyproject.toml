@@ -4,18 +4,13 @@ build-backend = "hatchling.build"
 
 [project]
 name = "pixelforge"
-version = "2.9.0"
+version = "4.1.1"
 description = "PixForge: shared pixel core with native C++ Windows desktop"
 requires-python = ">=3.10"
 dependencies = [
     "pillow>=10.0.0",
+    "pydantic>=2,<3",
 ]
-
-[project.optional-dependencies]
-mcp = ["mcp>=1,<2"]
-
-[project.scripts]
-pixelforge = "pixelforge.cli:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["pixelforge"]

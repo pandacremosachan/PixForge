@@ -65,37 +65,45 @@ inline J httpCall(const fs::path& runtime,const J& payload){
     return J::parse(response);
 }
 inline fs::path executablePath(){std::vector<wchar_t> path(32768);DWORD n=GetModuleFileNameW(nullptr,path.data(),DWORD(path.size()));if(!n||n>=path.size())throw std::runtime_error("Cannot resolve native executable path");return fs::path(std::wstring(path.data(),n));}
-struct CoreInstallation {fs::path python,sourceEntry,defaultWorkspace;};
+struct CoreInstallation {fs::path python,sourceEntry,defaultWorkspace,library;};
 inline CoreInstallation coreInstallation(){
     auto root=executablePath().parent_path();auto bundled=root/L"backend"/L"python.exe";
-    if(fs::is_regular_file(bundled))return {bundled,{},root/L"workspace"};
+    if(fs::is_regular_file(bundled))return {bundled,{},root/L"workspace",bundled.parent_path()/L"python312.dll"};
     auto configuration=root/L"pixforge-development.json";
     if(fs::is_regular_file(configuration)){
         auto data=readJson(configuration);if(data["schema"].str()!="pixforge.development-install/v1")throw std::runtime_error("Unsupported PixForge development installation");
         auto resolve=[&](const char* name){auto p=fs::path(wide(data[name].str()));return p.is_absolute()?p:fs::absolute(root/p);};
         auto python=resolve("python"),entry=resolve("entry"),workspace=resolve("workspace");
-        if(fs::is_regular_file(python)&&fs::is_regular_file(entry))return {python,entry,workspace};
+        if(fs::is_regular_file(python)&&fs::is_regular_file(entry))return {python,entry,workspace,resolve("python_dll")};
     }
-    return {{},{},root/L"workspace"};
-}
-inline std::wstring coreCommand(const CoreInstallation& installation){return quoteArgument(installation.python.wstring())+L" -B "+(installation.sourceEntry.empty()?L"-m pixelforge":quoteArgument(installation.sourceEntry.wstring()));}
-inline int runPublicCommand(const std::vector<std::wstring>& arguments){
-    auto installation=coreInstallation();if(installation.python.empty())throw std::runtime_error("找不到软件运行环境；请使用完整的 PixForge 软件包。");
-    std::wstring command=coreCommand(installation);for(auto& argument:arguments)command+=L" "+quoteArgument(argument);
-    SetEnvironmentVariableW(L"PYTHONUTF8",L"1");SetEnvironmentVariableW(L"PYTHONIOENCODING",L"utf-8");
-    STARTUPINFOW startup{sizeof startup};PROCESS_INFORMATION process{};startup.dwFlags=STARTF_USESTDHANDLES;
-    HANDLE streams[3]{};DWORD ids[3]={STD_INPUT_HANDLE,STD_OUTPUT_HANDLE,STD_ERROR_HANDLE};
-    for(int i=0;i<3;++i){auto original=GetStdHandle(ids[i]);if(original&&original!=INVALID_HANDLE_VALUE)DuplicateHandle(GetCurrentProcess(),original,GetCurrentProcess(),&streams[i],0,TRUE,DUPLICATE_SAME_ACCESS);}
-    startup.hStdInput=streams[0];startup.hStdOutput=streams[1];startup.hStdError=streams[2];
-    BOOL started=CreateProcessW(installation.python.c_str(),command.data(),nullptr,nullptr,TRUE,CREATE_NO_WINDOW,nullptr,nullptr,&startup,&process);for(auto stream:streams)if(stream)CloseHandle(stream);
-    if(!started)throw std::runtime_error("Cannot start PixForge public CLI/MCP");
-    CloseHandle(process.hThread);WaitForSingleObject(process.hProcess,INFINITE);DWORD code=1;GetExitCodeProcess(process.hProcess,&code);CloseHandle(process.hProcess);return int(code);
+    return {{},{},root/L"workspace",{}};
 }
 inline void ensurePortableCore(const fs::path& workspace,const fs::path& runtime){
+    SetEnvironmentVariableW(L"PIXFORGE_NATIVE_EXE",executablePath().c_str());
+    SetEnvironmentVariableW(L"PYTHONUTF8",L"1");SetEnvironmentVariableW(L"PYTHONIOENCODING",L"utf-8");
     try{auto state=httpCall(runtime,J::object({{"action","status"}}));if(state.contains("document_id"))return;}catch(...){}
     auto installation=coreInstallation();if(installation.python.empty())throw std::runtime_error("未找到 PixForge 核心运行环境。\n\n请完整解压软件包，并将 PixForgeNative.exe 与 backend 文件夹放在同一目录。开发构建需要同目录的 pixforge-development.json。软件运行不需要安装 skill。\n\n程序位置："+pathText(executablePath()));
-    fs::create_directories(workspace);fs::create_directories(runtime);std::wstring command=coreCommand(installation)+L" serve --workspace "+quoteArgument(workspace.wstring())+L" --runtime "+quoteArgument(runtime.wstring());STARTUPINFOW startup{sizeof startup};PROCESS_INFORMATION process{};SECURITY_ATTRIBUTES security{sizeof security,nullptr,TRUE};HANDLE log=CreateFileW((runtime/L"service.log").c_str(),FILE_APPEND_DATA,FILE_SHARE_READ|FILE_SHARE_WRITE,&security,OPEN_ALWAYS,FILE_ATTRIBUTE_NORMAL,nullptr),input=CreateFileW(L"NUL",GENERIC_READ,FILE_SHARE_READ|FILE_SHARE_WRITE,&security,OPEN_EXISTING,FILE_ATTRIBUTE_NORMAL,nullptr);startup.dwFlags=STARTF_USESTDHANDLES;startup.hStdOutput=startup.hStdError=log;startup.hStdInput=input;
-    BOOL started=CreateProcessW(installation.python.c_str(),command.data(),nullptr,nullptr,TRUE,CREATE_NO_WINDOW,nullptr,workspace.c_str(),&startup,&process);if(log!=INVALID_HANDLE_VALUE)CloseHandle(log);if(input!=INVALID_HANDLE_VALUE)CloseHandle(input);if(!started)throw std::runtime_error("无法启动 PixForge 核心，请检查私有运行环境。日志："+pathText(runtime/L"service.log"));CloseHandle(process.hThread);CloseHandle(process.hProcess);
+    fs::create_directories(workspace);fs::create_directories(runtime);
+    auto executable=executablePath();
+    std::wstring command=quoteArgument(executable.wstring())+L" serve --workspace "+quoteArgument(workspace.wstring())+L" --runtime "+quoteArgument(runtime.wstring());
+    STARTUPINFOEXW startup{};startup.StartupInfo.cb=sizeof startup;
+    PROCESS_INFORMATION process{};SECURITY_ATTRIBUTES security{sizeof security,nullptr,TRUE};
+    HANDLE log=CreateFileW((runtime/L"service.log").c_str(),FILE_APPEND_DATA,FILE_SHARE_READ|FILE_SHARE_WRITE,&security,OPEN_ALWAYS,FILE_ATTRIBUTE_NORMAL,nullptr);
+    HANDLE input=CreateFileW(L"NUL",GENERIC_READ,FILE_SHARE_READ|FILE_SHARE_WRITE,&security,OPEN_EXISTING,FILE_ATTRIBUTE_NORMAL,nullptr);
+    SIZE_T attributeSize=0;InitializeProcThreadAttributeList(nullptr,1,0,&attributeSize);
+    std::vector<unsigned char> attributes(attributeSize);
+    startup.lpAttributeList=reinterpret_cast<LPPROC_THREAD_ATTRIBUTE_LIST>(attributes.data());
+    bool initialized=InitializeProcThreadAttributeList(startup.lpAttributeList,1,0,&attributeSize)!=FALSE;
+    HANDLE inherited[2]={log,input};
+    bool configured=initialized&&log!=INVALID_HANDLE_VALUE&&input!=INVALID_HANDLE_VALUE&&
+        UpdateProcThreadAttribute(startup.lpAttributeList,0,PROC_THREAD_ATTRIBUTE_HANDLE_LIST,inherited,sizeof inherited,nullptr,nullptr)!=FALSE;
+    startup.StartupInfo.dwFlags=STARTF_USESTDHANDLES;startup.StartupInfo.hStdOutput=startup.StartupInfo.hStdError=log;startup.StartupInfo.hStdInput=input;
+    BOOL started=configured&&CreateProcessW(executable.c_str(),command.data(),nullptr,nullptr,TRUE,
+        DETACHED_PROCESS|EXTENDED_STARTUPINFO_PRESENT,nullptr,workspace.c_str(),&startup.StartupInfo,&process);
+    if(initialized)DeleteProcThreadAttributeList(startup.lpAttributeList);
+    if(log!=INVALID_HANDLE_VALUE)CloseHandle(log);if(input!=INVALID_HANDLE_VALUE)CloseHandle(input);
+    if(!started)throw std::runtime_error("无法启动 PixForge 核心，请检查私有运行环境。日志："+pathText(runtime/L"service.log"));
+    CloseHandle(process.hThread);CloseHandle(process.hProcess);
     for(int i=0;i<100;++i){try{auto state=httpCall(runtime,J::object({{"action","status"}}));if(state.contains("document_id"))return;}catch(...){}Sleep(100);}throw std::runtime_error("PixForge 核心未能就绪。请查看日志："+pathText(runtime/L"service.log"));
 }
 constexpr UINT WM_RPC=WM_APP+41,WM_FRONTEND=WM_APP+42,WM_RENDER=WM_APP+43;

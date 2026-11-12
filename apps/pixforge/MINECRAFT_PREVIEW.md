@@ -1,8 +1,8 @@
 # Forge 1.20.1 model and rendering preview
 
-PixForge 2.5 adds `minecraft-preview/v1` to public API major 1. The application owns resource resolution, geometry, texture sampling and rendering. The companion skill remains an external standard-library client. Previewing does not edit pixels, target configuration, project history, approval or game files.
+The command contract exposes `minecraft-preview/v1`. The application owns resource resolution, geometry, texture sampling and rendering. The companion skill calls application commands. Previewing does not edit pixels, target configuration, project history, approval or game files.
 
-Open **Resources / 资源 → Minecraft 模型与渲染预览…** in the native desktop. Select a declared resource entry or enter a model, blockstate or texture identifier. The current document can also be previewed, including its model, part poses and particle samples. A separate original resource example ships with `打开Minecraft渲染示例.cmd`.
+Call workbench editor --editor-kind preview with operation=open, then read status and configure the actual model, blockstate or texture identifier. The current document can also be previewed, including its model, part poses and particle samples. Load the original example with project open using examples/forge-preview-1.20.1/preview-demo.pixforge.
 
 The window provides these controls:
 
@@ -15,34 +15,59 @@ Drag to orbit and use the wheel to zoom. These operations stay in the native ren
 
 ## Public requests
 
-Discover `minecraft_capabilities` first; `preview` describes contexts, layers, features and scope. CLI operations accept `--options JSON`, `--options @file.json`, or `--options -`. An optional `--config` supplies a read-only target draft; omitting it uses the document's existing target.
+Discover `minecraft capabilities` first; `minecraft capabilities` describes contexts, layers, features and scope. Commands accept an options object. Optional settings supplies a read-only target draft; omitting it uses the document's existing target.
 
-```powershell
-PixForgeNative.exe --cli session --workspace <project> --runtime <session> minecraft-scene --options @preview.json
-PixForgeNative.exe --cli session --workspace <project> --runtime <session> minecraft-preview --options @preview.json --output review.png
-PixForgeNative.exe --cli session --workspace <project> --runtime <session> minecraft-preview --options @preview.json --batch --contexts block gui ground --case-offset 0 --case-limit 8 --output state-review.png
+执行 `minecraft preview --request-file <参数.json>`：
+
+```json
+{
+  "batch": true,
+  "contexts": [
+    "block",
+    "gui",
+    "ground"
+  ]
+}
 ```
 
-`minecraft-scene --include-pixels` returns a self-contained `pixforge.minecraft-scene/v1` bundle with actual RGBA pixels, baked faces, vertex colors, render rules, source/validation fingerprints and density reports. Pixels are omitted by default for compact inspection. `minecraft-preview` returns a PNG and `pixforge.minecraft-preview/v1` report, including `total_cases` and `next_case_offset`. Limit each comparison page to 1–16 cases. A case is a declared property combination × weighted model alternative × requested display context.
+minecraft scene --include-pixels true returns a self-contained `pixforge.minecraft-scene/v1` bundle with actual RGBA pixels, baked faces, vertex colors, render rules, source/validation fingerprints and density reports. Pixels are omitted by default for compact inspection. minecraft preview returns a PNG and `pixforge.minecraft-preview/v1` report, including `total_cases` and `next_case_offset`. Limit each comparison page to 1–16 cases. A case is a declared property combination × weighted model alternative × requested display context.
 
-MCP tools are `inspect_minecraft_scene` and `preview_minecraft_scene`. The latter returns the PNG as an image content block. Authenticated loopback operations are `minecraft_scene` and `minecraft_preview`, with the same `options`, `settings`, `include_pixels`, `batch`, `contexts`, `case_offset` and `case_limit` fields as applicable. All are reads. Neither operation grants workflow evidence or export approval.
+application commands are `minecraft scene` and `minecraft preview`. The latter returns the PNG file as preview_path. Their request fields include options, settings, include_pixels, batch, contexts, case_offset and case_limit as applicable. All are reads. Neither operation grants workflow evidence or export approval.
 
-Native window inspection uses `--cli ui --runtime <session> minecraft-preview`. Operations are `open`, `status`, `configure`, `field`, `invoke`, `camera`, `capture`, and `cancel`. `configure --value '{...}'` changes preview options only. The desktop API exposes field/action identifiers and GPU counters in `status`. Captures are discussion PNGs of this application's own window, subject to the normal source-overwrite guard.
+Native window inspection uses workbench editor --editor-kind preview. Operations are `open`, `status`, `configure`, `field`, `invoke`, `camera`, `capture`, and `cancel`. operation=configure with a value object changes preview options only. The desktop API exposes field/action identifiers and GPU counters in `status`. Captures are discussion PNGs of this application's own window, subject to the normal source-overwrite guard.
 
 Example options:
 
 ```json
 {
-  "subject": {"kind": "blockstate", "id": "examplemod:machine"},
-  "state": {"facing": "east", "active": "true"},
+  "subject": {
+    "kind": "blockstate",
+    "id": "examplemod:machine"
+  },
+  "state": {
+    "facing": "east",
+    "active": "true"
+  },
   "context": "block",
   "mipmap_levels": 4,
   "mip_level": -1,
   "sort_translucent": true,
-  "camera": {"yaw": 35, "pitch": 22, "distance": 56},
-  "block_tints": {"0": "#70b94b"},
-  "item_tints": {"0": "#d6ad66"},
-  "environment": {"sky_light": 15, "block_light": 0, "gamma": 0},
+  "camera": {
+    "yaw": 35,
+    "pitch": 22,
+    "distance": 56
+  },
+  "block_tints": {
+    "0": "#70b94b"
+  },
+  "item_tints": {
+    "0": "#d6ad66"
+  },
+  "environment": {
+    "sky_light": 15,
+    "block_light": 0,
+    "gamma": 0
+  },
   "ao": true,
   "self_light": 0,
   "size": 512

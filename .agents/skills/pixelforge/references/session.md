@@ -1,27 +1,34 @@
-# 共享工程与直接操作
+# 命令分组与按需参数
 
-CLI、MCP 与 Windows C++ 桌面使用同一独立核心。本文中的 `pixelforge` 指标准库客户端 `python <skill-base-dir>/scripts/pixforge_client.py [--app <软件目录>]`，所有编辑经软件公开接口执行。
+程序提供以下七组命令，合计 64 个动作。下文省略 EXE 路径及 W/R 参数；定位与输入规则见 [命令入口](command-line.md)。
 
-## 会话
+| 分组 | 用途 |
+|---|---|
+| project | 软件信息、当前工程、新建/打开/保存、历史、恢复与会话结束 |
+| canvas | 原子绘制、预演、像素读取和画布预览 |
+| model | 模型、UV、基础/碰撞/选中形状与模型预览 |
+| animation | 源帧、纹理时序、部件/粒子、状态、采样及播放 |
+| minecraft | 资源目标与检查、渲染、LabPBR、性能和回归 |
+| workbench | 窗口生命周期、同步、展示、视图及原生编辑器 |
+| asset | 独立 PNG/动画检查、离线草稿、真实内容确认与正式导出 |
 
-用 `session --workspace <项目> --runtime <目录> status` 或 MCP `info` 读取实际工程 ID、revision、图层、帧矩形和确认状态。首次调用可自动启动核心；`gui` 打开或复用原生窗口，关闭窗口后核心继续运行。`--runtime` 或 `PIXFORGE_RUNTIME` 指定共享会话，默认位于项目下 `.runtime/pixelforge-desktop`。不同 runtime 相互隔离。
+`--help` 只列分组；`canvas --help` 只列绘图动作；`canvas draw --help --json` 返回该动作的 params_schema。按需查询并复用说明，正常使用不读取实现。
 
-软件自行维护 `state.json` 中的工程与撤销历史、`approvals.json` 中的真实确认以及会话发现文件。不得编辑这些内部文件。服务重启恢复内容并推进 revision，旧版本令牌不能复用。
+内容写入的 expected_document_id/expected_revision 必须来自已观察到的当前状态；请求文件使用这些原名，命令参数为 `--expected-document-id` 与 `--expected-revision`。多数响应的 state 为后续状态。冲突后理解改动，不刷新令牌重发。
 
-## 编辑
+## 任务文件映射
 
-每次修改提交当前 `expected_document_id` 和 `expected_revision`，冲突后重读。手动笔画期间核心会阻止竞争写入。`edit` / MCP `draw` 执行当前工程的绘图批次，失败不提交、成功进入一条共享历史；`validate` 可预演。`undo`、`redo`、`save`、`open` 和 `create-project` 各自直接执行，不要求登记阶段或获取计划回执。
+| 文件内容 | 命令参数 |
+|---|---|
+| project.json | `project create --settings-file` |
+| draw.px | `canvas draw --commands-file` |
+| frames.json | `animation prepare-frames --settings-file` |
+| scene.json | `animation scene-configure --settings-file` |
+| target.json | `minecraft configure --settings-file` |
+| 完整操作响应或 state | `workbench wait --observed-file` 或 `workbench present --observed-file` |
 
-`create-project` 支持 `cube-faces`、`cube-shared`、`model` 和 `pixels`；导入模型保留其真实 UV。`project-plan` 是可选的只读布局预演。创建使用设置与当前版本令牌，旧未保存工程保留恢复稿。编辑模型面前用 `model-uv` 查询实际面域和共用关系。
+使用 `--settings-file project.json` 时，文件根对象就是 settings，模型对象放在其中的 model 字段。使用 `--request-file` 时，完整参数对象才包含 settings.model。options、observed 同样遵循此规则：单个参数文件直接存对象，完整请求文件用参数名包裹对象。
 
-材质时序用 `animation` 配置；增加源帧用 `animation-prepare definition.json`，定义包含 `frame_count` 和可选的 `frame_size`、`steps`、`loop`、`interpolation`，可一次撤销。部件运动、粒子、关键帧与命名状态用 `scene-animation` 或 MCP `configure_scene_animation`，参照 [场景定义](scene-animation.md)。原生编辑器、手动分帧、添加/复制/删除帧继续使用同一核心数据。
+原生编辑器使用 `workbench editor --editor-kind scene --operation status` 等命令；editor_kind 选择 scene、target、preview、regression 或 material 中的一项。先读取 status 的 actions 与 editable_fields，再设置 name/value。窗口命令与工程共用历史，关闭窗口后工程进程继续运行。
 
-## 预览、保存与导出
-
-`preview` 查看图集，`shape-preview` 查看模型与形状，`animation-preview --output preview.html` 生成按真实时序播放的 HTML；均不要求先导出正式 PNG。`save` 保存可编辑工程，不需要用户批准。
-
-向用户展示当前结果，取得针对该版本的真实同意后，调用 `approve` / MCP `approve_export`，再使用对应导出操作。用户也可自行点击桌面“确认并导出”。两种入口使用同一内容绑定；像素、模型、动画或依赖变化会使旧确认失效。没有额外的视觉验收凭据或阶段登记要求。
-
-## 桌面接口
-
-`ui help`、MCP `desktop_help` 返回当前原生界面的操作。`ui set` / `desktop_view` 可设置像素或模型面板、缩放、视角、时间和播放；截图用 `ui capture` / `desktop_capture`。这些查看操作不改作品、不产生撤销记录，也不批准导出。
+独立检查通过 `asset inspect`，离线草稿通过 `asset batch`；它们不替换共享工程。正式输出遵循 [操作约定](operations.md#资源检查与正式导出)。

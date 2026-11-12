@@ -4,4 +4,4 @@ Open `machine-runtime.pixforge` for start/working/stop states, native texture fr
 
 Use **资源 → Minecraft 动画与场景回归…**. The two pages inspect animation metadata and whole-scene resources. The normal target dialog and guarded exports remain available. The application does not start a game, place a fixture or alter a save automatically.
 
-See `MINECRAFT_RUNTIME_WORKBENCH.md` for CLI/MCP commands, instance wiring and game capture/comparison contracts. The example pixels and models are original authoring fixtures.
+See `MINECRAFT_RUNTIME_WORKBENCH.md` for application commands, instance wiring and game capture/comparison contracts. The example pixels and models are original authoring fixtures.

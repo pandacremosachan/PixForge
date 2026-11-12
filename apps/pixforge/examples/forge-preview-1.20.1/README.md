@@ -1,6 +1,6 @@
 # Original Forge 1.20.1 preview example
 
-This resource set was authored for PixForge. It contains no Minecraft/Mojang pixels or dependency code. Open `preview-demo.pixforge` with this directory as `--workspace`, and open the native rendering preview with `preview.json`. The portable application's `打开Minecraft渲染示例.cmd` does both using an isolated session.
+This resource set was authored for PixForge. It contains no Minecraft/Mojang pixels or dependency code. Use the executable commands with this example directory as --workspace and a separate --runtime. Load preview-demo.pixforge through project open, then pass the preview.json object to workbench editor --editor-kind preview; operation=configure,value=object or minecraft preview --options object.
 
 The machine blockstate combines a frame, translucent glass, alpha-cutout leaves, and a minimum-light strip. It declares four directions and two active states. `asymmetric` adds UV-lock and weighted alternatives. Actual item models provide GUI, ground, fixed and hand display transforms; `item/diagnostic` demonstrates generated thickness and an item predicate override. The grass colormap is an original synthetic 256×256 image.
 

@@ -1,19 +1,34 @@
 {
-  "schema": "pixforge.application/v1",
+  "schema": "pixforge.application/v4",
   "application": "PixForge",
-  "version": "2.9.0",
-  "public_api_version": 1,
+  "version": "4.1.1",
+  "public_api_version": 4,
   "interfaces": [
-    "cli",
-    "mcp-stdio",
-    "authenticated-loopback-json"
+    "resident-http",
+    "command-line"
   ],
-  "commands": {
-    "cli": "--cli",
-    "mcp": "--mcp",
-    "describe": "--describe"
+  "resident": {
+    "start": "PixForgeNative.exe serve --workspace DIR --runtime DIR",
+    "discovery": "RUNTIME/commands.json",
+    "schema": "pixforge.commands/v1",
+    "commands": "POST /v1/commands",
+    "help": "GET /v1/commands[/GROUP[/COMMAND]]",
+    "auth_header": "X-PixForge-Session"
   },
-  "compatibility": "Public API major versions are independent of software and skill versions. CLI command help and MCP tools expose available capabilities.",
+  "commands": {
+    "help": "--help",
+    "version": "--version",
+    "groups": [
+      "project",
+      "canvas",
+      "model",
+      "animation",
+      "minecraft",
+      "workbench",
+      "asset"
+    ]
+  },
+  "compatibility": "One executable for the desktop and grouped commands. Command parameters are validated; help is on demand. Existing project/history formats remain compatible.",
   "capabilities": [
     "minecraft-assets/v1",
     "forge-runtime/v1",

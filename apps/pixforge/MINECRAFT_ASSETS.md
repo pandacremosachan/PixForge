@@ -1,14 +1,14 @@
 # Minecraft targets and asset exports
 
-PixForge 2.3 adds the optional `minecraft-assets/v1` capability to public API v1. The first target is **Forge / Minecraft Java 1.20.1**, using resource-pack format **15**. Parsing, validation, source precedence, asset generation and publication belong to the application. No skill files or modules are needed.
+The command contract exposes the optional `minecraft-assets/v1` capability. The first target is **Forge / Minecraft Java 1.20.1**, using resource-pack format **15**. Parsing, validation, source precedence, asset generation and publication belong to the application. No skill files or modules are needed.
 
-The native desktop exposes **资源 → Minecraft 目标、资源与检查…**. The dialog edits an independent draft: validate it, inspect issues and sources, then apply one undoable operation. Cancelling leaves the project untouched. The same core operations are available through CLI/MCP. Formal exports remain gated by current evidence, real user approval and current dependency fingerprints.
+The native desktop exposes **资源 → Minecraft 目标、资源与检查…**. The dialog edits an independent draft: validate it, inspect issues and sources, then apply one undoable operation. Cancelling leaves the project untouched. The same core operations are available through executable commands. Formal exports remain gated by current evidence, real user approval and current dependency fingerprints.
 
 PixForge 2.4.1 organizes this dialog into **目标配置**, **资源来源**, **Forge 接入**, and **检查结果** pages. Package/version/block/render-layer settings are edited directly; complete runtime JSON and entry arrays have separate resizable editors. Reports switch between issues, effective files, overrides and project hooks, while generated source opens in a dedicated read-only file browser. Check/apply/cancel remain in a persistent footer. Compact windows scroll only the active page and reveal keyboard-focused controls automatically.
 
 ## Configuration
 
-Use `session minecraft-capabilities` to discover the exact supported profiles. Applying a configuration is explicit; older projects are never assigned or converted to a Minecraft target automatically.
+Use minecraft capabilities to discover the exact supported profiles. Applying a configuration is explicit; older projects are never assigned or converted to a Minecraft target automatically.
 
 ```json
 {
@@ -17,12 +17,27 @@ Use `session minecraft-capabilities` to discover the exact supported profiles. A
   "namespace": "examplemod",
   "description": "Example Forge 1.20.1 resources",
   "sources": [
-    {"name": "vanilla", "path": "D:/reference/client-1.20.1.jar", "role": "dependency"},
-    {"name": "project", "path": "src/main/resources", "role": "project"},
-    {"name": "generated", "path": "src/generated/resources", "role": "project"}
+    {
+      "name": "vanilla",
+      "path": "D:/reference/client-1.20.1.jar",
+      "role": "dependency"
+    },
+    {
+      "name": "project",
+      "path": "src/main/resources",
+      "role": "project"
+    },
+    {
+      "name": "generated",
+      "path": "src/generated/resources",
+      "role": "project"
+    }
   ],
   "entries": [
-    {"kind": "blockstate", "id": "examplemod:existing_machine"}
+    {
+      "kind": "blockstate",
+      "id": "examplemod:existing_machine"
+    }
   ],
   "binding": {
     "kind": "texture",
@@ -50,19 +65,17 @@ Use `texture` when replacing an existing mod's texture without flattening its fa
 
 ## Public operations
 
-```powershell
-.\PixForgeNative.exe --cli session --workspace D:\Project --runtime D:\Project\.runtime\pixforge minecraft-capabilities
-.\PixForgeNative.exe --cli session --workspace D:\Project --runtime D:\Project\.runtime\pixforge minecraft-configure --config target.json --expected-document-id <id> --expected-revision <revision>
-.\PixForgeNative.exe --cli session --workspace D:\Project --runtime D:\Project\.runtime\pixforge minecraft-check
-.\PixForgeNative.exe --cli session --workspace D:\Project --runtime D:\Project\.runtime\pixforge minecraft-check --sources-only
-.\PixForgeNative.exe --cli session --workspace D:\Project --runtime D:\Project\.runtime\pixforge minecraft-export resources.zip --format resource-pack --validation-digest <digest> --expected-document-id <id> --expected-revision <revision>
+执行 `minecraft check --request-file <参数.json>`：
+
+```json
+{}
 ```
 
-`minecraft-configure --clear` removes the target in one undoable operation. `minecraft-check --config draft.json` checks a draft without applying it. `--sources-only` excludes the current document overlay and needs explicit source entries. Checks return `validation.passed`, issues with severity/code/resource/source, graph edges, source winners/overrides, exact file hashes, generated-sprite inputs and `validation_digest`. A failed CLI check returns exit code 1 with its report; MCP marks that result as an error and still supplies diagnostics.
+minecraft configure --settings null removes the target in one undoable operation. minecraft check --settings draft-object checks a draft without applying it. use_document=false excludes the current document overlay and needs explicit source entries. Checks return `validation.passed`, issues with severity/code/resource/source, graph edges, source winners/overrides, exact file hashes, generated-sprite inputs and `validation_digest`. Failed checks return ok=false and a nonzero exit code while retaining diagnostics.
 
-MCP equivalents are `minecraft_capabilities`, `configure_minecraft_target`, `check_minecraft_resources`, and `export_minecraft_resources`. The authenticated JSON operations are `minecraft_capabilities`, `minecraft_configure`, `minecraft_check`, and `minecraft_export`; mutating operations require the observed document ID/revision. CLI checks return the report in `validation`, including `validation.passed` and `validation.validation_digest`; the same result includes the observed project in `state`. Apply targets and edit directly, then inspect resources and previews. Formal export binds real user approval to current content and the validation fingerprint. A changed dependency invalidates resource approval/export even when no artwork pixel changed.
+application commands are `minecraft capabilities`, `minecraft configure`, `minecraft check`, and `asset export-minecraft`. Mutating tools require the observed document ID/revision. Resource checks return the report in `validation`, including `validation.passed` and `validation.validation_digest`; the same result includes the observed project in `state`. Apply targets and edit directly, then inspect resources and previews. Formal export binds real user approval to current content and the validation fingerprint. A changed dependency invalidates resource approval/export even when no artwork pixel changed.
 
-The native editor's public `ui minecraft-editor` commands operate on drafts, inspection and apply/cancel only. They expose no approval or export action. Real native export gestures live under the **资源** menu.
+workbench editor --editor-kind target operates on drafts, inspection and apply/cancel only. It exposes no approval or export action; content confirmation and publication use the corresponding guarded application commands.
 
 ## Forge 1.20.1 checks
 
@@ -82,9 +95,9 @@ One check is bounded to 16 sources, 256 explicit entries, 4096 resolved files, 3
 
 The export manifest contains target/adapter version, asset SHA-256 values, dependency requirements, content/validation fingerprints and warnings. It excludes connection credentials and absolute local source paths. Export rechecks the source graph and requires the caller's `validation_digest` to match both the current graph and the user's approved resource fingerprint.
 
-Unconfigured old projects keep `pixelforge.desktop/v1`, unchanged content digests and existing history. Applying a target saves configured projects as `pixelforge.desktop/v2`; a session carrying target history uses `pixelforge.session/v2`. The new app reads both versions. Old software rejects the newer schema instead of silently discarding target settings/history. Clearing the target permits a v1 project file again; the session still protects any newer undo/redo entries. The skill can update independently, and public API v1 integrations remain compatible with the newer app.
+Unconfigured old projects keep `pixelforge.desktop/v1`, unchanged content digests and existing history. Applying a target saves configured projects as `pixelforge.desktop/v2`; a session carrying target history uses `pixelforge.session/v2`. The new app reads both versions. Old software rejects the newer schema instead of silently discarding target settings/history. Clearing the target permits a v1 project file again; the session still protects any newer undo/redo entries. The skill can update independently, and project and history formats remain compatible; automation uses command contract 4.
 
-Forge runtime configuration uses an optional `runtime` object and target schema `pixforge.minecraft-project/v2`; it is explicit and uses desktop/v3 / session/v3 protection. `forge-integration` and `forge-mod` are code/resource formats, while the formats above retain their asset-only behavior. `minecraft-check --include-generated-code` provides read-only code/build previews before approval. Runtime and ordinary bindings cannot overlap silently. Full configuration, synchronization and integration contracts are in [FORGE_RUNTIME.md](FORGE_RUNTIME.md).
+Forge runtime configuration uses an optional `runtime` object and target schema `pixforge.minecraft-project/v2`; it is explicit and uses desktop/v3 / session/v3 protection. `forge-integration` and `forge-mod` are code/resource formats, while the formats above retain their asset-only behavior. `minecraft check --include-generated-code true` provides read-only code/build previews before approval. Runtime and ordinary bindings cannot overlap silently. Full configuration, synchronization and integration contracts are in [FORGE_RUNTIME.md](FORGE_RUNTIME.md).
 
 All results set `in_game_validated: false`. Format/reference checks do not establish registry coverage, actual rendering, game performance or visual acceptance.
 

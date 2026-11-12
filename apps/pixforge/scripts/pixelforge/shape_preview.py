@@ -12,6 +12,7 @@ NORMALS = {"north": (0, 0, -1), "south": (0, 0, 1), "west": (-1, 0, 0),
            "east": (1, 0, 0), "up": (0, 1, 0), "down": (0, -1, 0)}
 SHADES = {"up": 1, "down": .5, "north": .82, "south": .82, "west": .66, "east": .66}
 COLORS = {"base": "#ffca68", "collision": "#ff678b", "selection": "#62e5ff"}
+MODEL_VIEW = {"size": 400, "yaw": 35, "pitch": 30, "overlays": [], "show_model": True}
 EDGES = ((0, 1), (1, 2), (2, 3), (3, 0), (4, 5), (5, 6), (6, 7), (7, 4), (0, 4), (1, 5), (2, 6), (3, 7))
 
 
@@ -167,16 +168,16 @@ def render(shapes, texture, *, size=400, yaw=35, pitch=30, overlays=("collision"
     return out
 
 
-def html(shapes, canvas, animation, metadata, scene=None):
+def html(shapes, canvas, animation, metadata, *, view, scene=None, inventory=None):
     images = []
     image = canvas.composite()
     for x,y,w,h in animation["rectangles"]:
         stream = io.BytesIO()
         image.crop((x,y,x+w,y+h)).save(stream,format="PNG")
         images.append("data:image/png;base64,"+base64.b64encode(stream.getvalue()).decode("ascii"))
-    _, _, bounds = camera(shapes, 520, 35, 30, scene)
+    _, _, bounds = camera(shapes, view["size"], view["yaw"], view["pitch"], scene)
     data = {"shapes": {t: effective(shapes,t) for t in COLORS}, "mesh": mesh(shapes["model"]),
             "images": images,"plan":animation, "colors":COLORS,"edges":EDGES, "bounds":bounds,
-            "report":report(shapes),"metadata":metadata,"scene":scene}
+            "report":report(shapes),"metadata":metadata,"scene":scene,"view":view,"inventory":inventory}
     template = Path(__file__).with_name("shape_review.html").read_text(encoding="utf-8")
     return template.replace("/*SCENE_RUNTIME*/", Path(__file__).with_name("scene_runtime.js").read_text(encoding="utf-8")).replace("/*DATA*/null",json.dumps(data,ensure_ascii=False,allow_nan=False).replace("<","\\u003c"))

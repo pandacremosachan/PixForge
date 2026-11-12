@@ -1,5 +1,8 @@
 {
   "preset": "model",
   "width": 16,
-  "height": 16
+  "height": 16,
+  "base_boxes": [
+    { "id": "slab", "from": [1, 0, 1], "to": [15, 3, 15] }
+  ]
 }

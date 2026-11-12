@@ -1,7 +1,7 @@
 # Minecraft animation and whole-scene regression in PixForge 2.8
 
 The standalone application owns these capabilities. The companion skill uses the
-public EXE/CLI/MCP only. Public API major 1 is unchanged; additional capabilities
+application commands only. Command contract 4 is used; additional capabilities
 are `minecraft-animation/v1` and `minecraft-regression/v1`.
 The native entry is **资源 → Minecraft 动画与场景回归…**.
 Inspection and previews are read only. Applying settings uses the same document
@@ -10,8 +10,7 @@ Formal asset/code export retains its current-version review/approval checks.
 
 ## 1. Atlas metadata and actual machine instances
 
-`session minecraft-animation --metadata texture.png.mcmeta --time-ms 50
---output sample.png` reads a draft against the current PNG canvas. Width-only,
+animation minecraft-inspect --metadata object,time-ms 50 reads a draft against the current PNG canvas. Width-only,
 height-only, default square sizing, row-major frame indices, default `frametime`,
 explicit frame durations, repeated/skipped frames and RGB interpolation use the
 Minecraft 1.20.1 rules. A missing/empty `frames` list uses every frame. The source
@@ -19,16 +18,15 @@ PNG must be divisible by the declared frame size. Invalid indices/timing are
 rejected instead of being silently removed or rounded. Unknown animation fields
 are rejected; non-animation metadata of external resource sources is not rewritten.
 
-`session minecraft-animation-apply --metadata texture.png.mcmeta
---expected-document-id ID --expected-revision REV` imports timing and interpolation
+animation minecraft-configure --metadata object,expected-document-id ID,expected-revision REV imports timing and interpolation
 in one undo step. Pixel bytes remain unchanged. A configured Minecraft target is
 required. Native document timing holds dimensions/rectangles/order/duration;
 `texture_animation: {"interpolate": true}` on the Minecraft target selects game
 interpolation. `.mcmeta` export repacks declared frames into a vertical strip and
 preserves their indices/timing. It requires looping positive whole 50 ms ticks.
 The workbench can inspect a draft before applying it, or load an actual `.mcmeta`.
-MCP equivalents are `inspect_minecraft_animation` and
-`configure_minecraft_animation`.
+Command equivalents are `animation minecraft-inspect` and
+`animation minecraft-configure`.
 
 The renderer samples interpolation on whole game ticks. Only RGB channels are
 mixed, and the current source frame's alpha is preserved. The Minecraft preview
@@ -76,7 +74,11 @@ onLoad hooks, plus periodic server correction.
 Optional `runtime.scene.lifecycle` config:
 
 ```json
-{"unloaded":"pause","max_catch_up_ticks":2400,"sync_interval_ticks":20}
+{
+  "unloaded": "pause",
+  "max_catch_up_ticks": 2400,
+  "sync_interval_ticks": 20
+}
 ```
 
 `pause` resumes the saved clock; `catch_up` advances by elapsed server game time,
@@ -86,8 +88,7 @@ No structure formation or machine processing is inferred by the example.
 
 ## 2. Whole-scene budget and actual game evidence
 
-`session minecraft-performance --options @budget.json`, or MCP
-`inspect_minecraft_performance`, returns source/frame pixel counts, unique RGBA
+minecraft performance --options budget-object, returns source/frame pixel counts, unique RGBA
 frames, raw mip-chain bytes, material layers, dynamic parts,
 emitters and particles sampled across authored states/times. Instance scenarios
 accept 1..4096 machines. Shared textures are counted once; per-instance geometry,
@@ -115,12 +116,22 @@ are unavailable; frame intervals include vsync/FPS caps and background load.
 
 Compare **actual** captured directories with:
 
-```text
-session minecraft-regression-compare BASELINE CANDIDATE --budgets "{...}"
+执行 `minecraft compare --request-file <参数.json>`：
+
+```json
+{
+  "baseline": "<baseline directory>",
+  "candidate": "<candidate directory>",
+  "budgets": {
+    "pixel_threshold": 0,
+    "changed_fraction": 0,
+    "p95_ratio": 1.1
+  }
+}
 ```
 
 The default explicit budgets are pixel threshold 0, changed fraction 0, p95 time
-ratio 1.1. MCP exposes `compare_minecraft_regression`; the native workbench has
+ratio 1.1. The application exposes `minecraft compare`; the native workbench has
 capture directory and budget fields. The comparer verifies PNG/log hashes, fixed
 view/options, loaded state/lighting and animation phases, then reports pixel and
 timing deltas. Incomparable contexts cannot pass. A bounded log tail is evidence

@@ -1,6 +1,6 @@
 # Forge 1.20.1 runtime export in PixForge 2.4
 
-The additional `forge-runtime/v1` capability belongs to the standalone application. The skill only calls the public EXE/CLI/MCP.
+The additional `forge-runtime/v1` capability belongs to the standalone application. The skill only calls the application commands.
 Target configuration adds an optional runtime object; no existing project is assigned one automatically.
 
 ```json
@@ -23,18 +23,18 @@ Target configuration adds an optional runtime object; no existing project is ass
 }
 ```
 
-Use the existing `session minecraft-configure --config target.json` and guarded document/revision tokens.
+Use the existing minecraft configure --settings target-object and guarded document/revision tokens.
 The native **资源 → Minecraft 目标、资源与检查…** dialog can derive a draft from the current scene. In 2.4.1, use the **Forge 接入** page for structured package/version and scene block/render-layer fields; **编辑完整 JSON…** opens the full configuration in a separate editor. The **检查结果** page separates diagnostics, files, overrides and required project hooks, and opens generated code in a read-only file viewer. These views retain the same draft, validation fingerprint and undo behavior.
-`minecraft-check --include-generated-code` (MCP `check_minecraft_resources(include_generated_code=True)`) exposes the generated Java, build entry points and runtime definition before approval.
+`minecraft check --include-generated-code true` exposes the generated Java, build entry points and runtime definition before approval.
 It is read only and does not write an export. The native **查看生成代码与接线说明（只读）** action provides the same draft preview.
 `workflow-review` includes this code in its `minecraft.json` evidence; code/template and source dependency changes invalidate the reviewed fingerprint.
 
-After real user acceptance, `minecraft-export result.zip --format forge-integration|forge-mod --validation-digest <digest>` publishes atomically.
-The menu contains matching physical confirmation/export actions. Public draft UI commands never approve or export.
+After real user acceptance, asset export-minecraft --path,format,validation-digest,expected-document-id,expected-revision publishes atomically.
+Draft editor tools never approve or export; use asset approve and asset export-minecraft for guarded publication.
 Configured runtime projects use desktop/v3; sessions with current or undo/redo runtime data use session/v3. PixForge 2.4 reads v1/v2/v3.
 Older applications reject v3. Existing unconfigured and resource-only projects retain their prior formats, art digests and history.
 
-The original combined example is in [examples/forge-runtime-1.20.1](examples/forge-runtime-1.20.1/README.md); the portable launcher is **打开Forge模组接入示例.cmd**.
+The original combined example is in [examples/forge-runtime-1.20.1](examples/forge-runtime-1.20.1/README.md). Load its runtime-demo.pixforge with project open, then inspect it with the corresponding application commands.
 It contains no source paths or game assets and is saved without export approval.
 
 # Generated integration contract

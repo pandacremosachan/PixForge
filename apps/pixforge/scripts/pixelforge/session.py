@@ -20,7 +20,7 @@ def image_data(image):
 
 
 def dispatch(document, payload, *, focus=None):
-    """One command contract for embedded GUI, local API, CLI and MCP clients."""
+    """One command contract for the native GUI and executable commands."""
     action = payload.get("action", "status")
     if action == "view_poll":
         # Native and other asynchronous frontends only need a change token here.
@@ -142,19 +142,29 @@ def dispatch(document, payload, *, focus=None):
                                                              (" raw" if payload.get("raw") else ""))
         return {"state": document.status(), "text": "\n".join(lines)}
     if action == "shape_preview":
-        from .shape_preview import render, html
+        from .shape_preview import MODEL_VIEW, render, html
         frame = payload.get("frame", document.view_frame)
         if type(frame) is not int or not 0 <= frame < len(document.animation["rectangles"]):
             raise StudioError("形状预览帧索引超出范围")
         x,y,w,h = document.animation["rectangles"][frame]
-        options = {k: payload[k] for k in ("size", "yaw", "pitch", "overlays", "show_model") if k in payload}
+        options = {k: payload.get(k, default) for k, default in MODEL_VIEW.items()}
         image = render(document.shapes, document.canvas.composite().crop((x,y,x+w,y+h)), scene=document.scene_animation, time_ms=payload.get("time_ms",0), **options)
         state = document.status()
         result = {"state": state, "image": image_data(image), "report": state["shape_report"]}
         if payload.get("html", False):
             metadata = {k: state[k] for k in ("document_id", "revision", "content_digest")}
             metadata["project_name"] = document.project_path.name if document.project_path else "未命名工程"
-            result["html"] = html(document.shapes, document.canvas, document.animation, metadata, scene=document.scene_animation)
+            target = document.minecraft_project or {}
+            binding = target.get("binding") or {}
+            inventory = None
+            if binding.get("kind") == "item":
+                from .minecraft_review import preview
+                item_id = f"{target['namespace']}:item/{binding['path']}"
+                gui = preview(document, view={"subject": {"kind": "model", "id": item_id}, "context": "gui", "size": 192})
+                inventory = gui.get("image")
+                result["item_gui_validation"] = gui["validation"]
+            result["html"] = html(document.shapes, document.canvas, document.animation, metadata,
+                                  view=options, scene=document.scene_animation, inventory=inventory)
         return result
     document.guard(payload.get("expected_document_id"), payload.get("expected_revision"))
     if action in ("edit", "validate"):

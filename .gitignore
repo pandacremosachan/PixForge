@@ -5,6 +5,7 @@
 **/node_modules/
 **/workspace/
 **/pixforge-development.json
+.agents/skills/pixelforge/runtime/
 *.pyc
 *.pyo
 *.obj

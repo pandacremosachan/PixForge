@@ -1,43 +1,67 @@
-# PixForge public interfaces
+# PixForge commands, contract 4
 
-PixForge is an independently installed application. Keep its EXE, `application.json` and private `backend` together. Skills and external clients use its public interfaces; they do not import application modules or modify internal session files. Public transport/schema major version remains 1.
+The resident PixForgeNative.exe owns command definitions, validation and JSON results. Start it once per workspace/session; the calling application sends requests without launching a process per command.
 
-## Discovery and commands
+## Resident interface
 
-`PixForgeNative.exe --describe` returns the application version, public API version, capabilities and supported interfaces. `application.json` provides the same installation declaration. Clients reject unsupported API major versions before mutation.
+Start `PixForgeNative.exe serve --workspace W --runtime R` as a background process. Without `--runtime` the session is `W/.runtime/pixelforge-desktop`. Once the project is ready, the program atomically publishes `R/commands.json` and prints a readiness line with its PID and the file path. A second caller uses the same descriptor. It contains the authenticated loopback endpoint, session ID, workspace and owning EXE PID; keep its token local. After a restart, read the new descriptor. A normal `project shutdown` removes it.
 
-`PixForgeNative.exe --cli <arguments...>` forwards arguments, stdin, UTF-8 stdout/stderr and exit status to the application CLI. Groups include `session`, `ui`, `gui`, `run`, `preview` and `animation-preview`. Discover parameters with `--cli --help`, `--cli session --help`, or `--cli ui --runtime <directory> help`.
+From PowerShell 7, once the host is ready (palette keys are case-sensitive):
 
-`PixForgeNative.exe --mcp --workspace <project> --runtime <session>` exposes stdio MCP. Initialize, discover tools and read `info`. Closing MCP leaves the shared core available. MCP dependencies belong to the application, not its external skill.
+```powershell
+$c = Get-Content -LiteralPath (Join-Path $runtime 'commands.json') -Raw -Encoding utf8 | ConvertFrom-Json
+$headers = @{ 'X-PixForge-Session' = $c.token }
+$http = Invoke-WebRequest -Method Post -Uri $c.url -Headers $headers -ContentType 'application/json; charset=utf-8' -Body '{"group":"project","command":"state","params":{}}'
+$state = $http.Content | ConvertFrom-Json -AsHashtable
+```
 
-## Host-independent integration
+`POST /v1/commands` accepts exactly `group`, `command` and optional `params` (an object using the published parameter names). The endpoint is bound to its workspace/runtime. `GET /v1/commands` lists the groups, `GET /v1/commands/canvas` lists canvas actions and `GET /v1/commands/canvas/draw` returns its parameter schema. Use the same header for all requests. POST returns the existing command result with `ok`, including domain failures (HTTP 200, `ok:false`). Invalid envelopes, authentication or routes return an HTTP error. Use the returned revision before the next write; previews return file paths. The optional workbench opens in the resident process; closing it leaves the service running.
 
-Any host that can execute a process can use the CLI; any standard MCP stdio host can use the MCP endpoint. Neither transport depends on Codex, skill discovery directories, host-specific tool prefixes or prompt syntax. A companion skill is optional guidance, not an application dependency. `agents/openai.yaml` in a companion package is optional host metadata and is never consumed by PixForge.
+## One-shot CLI
 
-CLI commands use separate argv values, UTF-8 JSON results and nonzero failure exit codes. MCP returns JSON in text content and optional PNG image content; clients must inspect `isError`. Session status is a top-level state object; most operations return it in `state`. Resource checks return `validation.passed` and `validation.validation_digest`. Export approval advances revision, so use its returned state for subsequent exports. Never silently refresh a stale write token and retry a mutation over concurrent human edits.
+Existing scripts may still invoke a command as a process. Running the EXE without a subcommand opens the workbench.
 
-The distributed native desktop is Windows x64. Host independence does not make that executable native to other operating systems. A remote or cross-system host needs an already configured compatible process/MCP bridge. Paths after the application boundary refer to the software host, including workspace, runtime, input files and output previews; the caller needs an explicit file channel or an inline payload such as MCP `draw.commands`. The authenticated loopback endpoint is local, not an unauthenticated remote service.
+```text
+PixForgeNative.exe --version --json
+PixForgeNative.exe --help
+PixForgeNative.exe canvas --help
+PixForgeNative.exe canvas draw --help --json
+PixForgeNative.exe project state --workspace W --runtime R --result-file observed.json
+PixForgeNative.exe canvas draw --workspace W --runtime R --commands-file draw.px --expected-document-id ID --expected-revision 12
+PixForgeNative.exe workbench present --workspace W --runtime R --observed-file observed.json --path discussion.png
+```
 
-## Shared editing
+## Discovery and parameters
 
-Read the current `document_id`, `revision`, layers, frame layout and capabilities before editing. Mutations submit the observed document/revision tokens; conflicts require a fresh read. Manual strokes temporarily block competing writes. CLI, MCP and the C++ desktop share one document, undo/redo, recovery and export approval.
+Seven groups expose 64 actions: project, canvas, model, animation, minecraft, workbench and asset. Top-level help lists groups; group help lists its actions; action help lists only that action's parameters. --json returns an exact params_schema. Help, version and project info do not start or mutate a session.
 
-Drawing, model import, shapes, texture timing and part/particle scenes execute directly through their dedicated operations. `project_plan` / MCP `plan_project` optionally previews dimensions and UV layout. `create_project` validates settings and creates the project without a plan receipt. `model_uv` reads actual face mappings; it does not authorize or gate drawing.
+Command flags use kebab-case; JSON keys use snake_case. Each parameter supports --NAME-file: strings are read as UTF-8 text, other values as JSON. - reads stdin; only one input may consume stdin. --request-file reads a full parameter object (or stdin with -); --request-json accepts an inline object. Duplicate, unexpected and invalid fields are rejected. Boolean flags accept true/false, with a flag alone meaning true. --workspace/--runtime/--json/--result-file may appear before or after the command.
 
-`animation_prepare` / CLI `animation-prepare` / MCP `prepare_animation_frames` accepts `frame_count` and optional `frame_size`, `steps`, `loop`, `interpolation`. It retains existing pixels/layers, copies the first source frame into added slots, remaps data-material planes and adds one undo step. Existing manual frame insertion, duplication and deletion use the same packing code. Part/particle animation uses `scene_animation` / MCP `configure_scene_animation`; existing keyframes, states, event transitions and previews are preserved.
+Execution returns a single UTF-8 JSON object with ok. A write requires observed expected_document_id/expected_revision and normally returns the next state. Conflicts require understanding intervening changes, without automatic token refresh/retry. --result-file also saves the response to a new file and rejects an existing output before executing the operation.
 
-Previews and editable project saves do not require approval. Formal PNG, shape and Minecraft exports require real user consent bound to the current content. Changed content invalidates that approval. Resource exports also validate current dependency fingerprints. These checks are independent of procedural stage registries or visual-review receipts.
+Images and HTML players are materialized to new discussion files under R/previews and returned as preview_path/html_path. Window presentation also returns capture and desktop receipts for the exact revision. The caller must inspect the actual files. No base64 image is printed into command output. Formal production files remain guarded by asset approve and asset export-png/export-shapes/export-minecraft.
 
-## Local transport
+## Shared workbench
 
-The authenticated loopback service publishes `runtime/session.json` with `url`, `token`, `session_id`, process and mode. Read `/health`; send JSON such as `{"action":"status"}` to `/api` with `X-PixForge-Session`. Mutations include `expected_document_id` and `expected_revision` alongside operation fields. The service rejects browser-origin requests. Do not log tokens or edit discovery/checkpoint files.
+The workspace defaults to the calling directory; the session defaults to W/.runtime/pixelforge-desktop unless --runtime is specified. Commands connect to the same existing project as the workbench, rather than recreating it. workbench open/wait/present/close manages the window. Five native editors use workbench editor with --editor-kind and --operation; discover actions and editable_fields from status. Applying a draft validates its original revision and adds shared undo history. Closing the window keeps the core available; project shutdown persists and stops it after the window is closed.
 
-The native view publishes `runtime/gui/session.json`. Its `ui_help` documents view controls, client-area captures and model/animation/material editors. View operations do not approve exports. Closing the native window leaves the core session available.
+Existing project/history formats, undo, recovery and content consent semantics remain compatible. A saved editable project or discussion preview requires no publication consent. Formal export requires actual human consent bound to the shown content; Minecraft exports rescan resource/code fingerprints. Approval advances revision, so subsequent export uses its returned state.
 
-## Optional Minecraft tools
+## Exit codes
 
-Capability discovery advertises `minecraft-assets/v1`, `forge-runtime/v1`, `minecraft-preview/v1`, `minecraft-animation/v1`, `minecraft-regression/v1` and `minecraft-material/v1`. Configure targets and inspect real source graphs before export. Detailed settings and supported semantics are documented in [MINECRAFT_ASSETS.md](MINECRAFT_ASSETS.md), [FORGE_RUNTIME.md](FORGE_RUNTIME.md), [MINECRAFT_PREVIEW.md](MINECRAFT_PREVIEW.md), [MINECRAFT_RUNTIME_WORKBENCH.md](MINECRAFT_RUNTIME_WORKBENCH.md) and [MINECRAFT_MATERIAL_DATA.md](MINECRAFT_MATERIAL_DATA.md).
+| Code | Meaning |
+|---|---|
+| 0 | Success |
+| 1 | Operation or declared constraint failed |
+| 2 | Invalid command, parameter or input |
+| 3 | Document/revision conflict |
+| 4 | Output already exists |
+| 5 | Busy or timeout |
+| 6 | Missing approval or stale export evidence |
+| 7 | Session/window unavailable |
 
-## Independent updates
+Read code/error/details/issues and validation reports, not just the exit code. A timeout after submission does not prove that a write failed; reread state before deciding how to proceed.
 
-Software and companion skills are packaged and updated separately. Preserve user workspaces and external projects during application updates. Replacing a skill does not change the application or its runtime. Saved project formats, history and content-bound export approval remain supported.
+The native application is Windows x64. The built-in Minecraft target is Java 1.20.1 / Forge. Capabilities retain minecraft-assets/v1, forge-runtime/v1, minecraft-preview/v1, minecraft-animation/v1, minecraft-regression/v1 and minecraft-material/v1. Offline previews and generated code do not establish game behavior.
+
+Detailed contracts: [resources](MINECRAFT_ASSETS.md), [Forge integration](FORGE_RUNTIME.md), [render preview](MINECRAFT_PREVIEW.md), [animation and regression](MINECRAFT_RUNTIME_WORKBENCH.md), [LabPBR](MINECRAFT_MATERIAL_DATA.md).

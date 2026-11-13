@@ -1,7 +1,7 @@
 """Discussion-only single and paged batch previews; no artwork publication."""
 import base64
+from .image_bytes import png
 from copy import deepcopy
-import io
 
 from .document import StudioError
 from .minecraft_view import build_scene, finite
@@ -49,11 +49,11 @@ def preview(document, *, settings=None, view=None, batch=False, contexts=None, c
                      'density':scene['density'],'density_summary':scene['density_summary'],'metrics':metrics,
                      'image_rgba_sha256':digest(image.tobytes()),'options':scene['options']})
     image=comparison_sheet(images,labels) if batch else images[0]
-    stream=io.BytesIO();image.save(stream,format='PNG')
-    return {'image':base64.b64encode(stream.getvalue()).decode('ascii'),
+    raw=png(image)
+    return {'image':base64.b64encode(raw).decode('ascii'),
             'validation':initial['validation'],'report':{'schema':'pixforge.minecraft-preview/v1','passed':True,
                 'batch':batch,'total_cases':len(combinations),'case_offset':case_offset,'case_count':len(rows),
                 'next_case_offset':case_offset+len(rows) if batch and case_offset+len(rows)<len(combinations) else None,
-                'cases':rows,'size':list(image.size),'png_sha256':digest(stream.getvalue()),
+                'cases':rows,'size':list(image.size),'png_sha256':digest(raw),
                 'content_digest':document.art_digest(),'coverage':initial['coverage'],
                 'catalog':initial['catalog'],'read_only':True,'in_game_validated':False,'approval_issued':False}}

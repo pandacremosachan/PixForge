@@ -106,8 +106,6 @@ inline int runNativeCommand(const std::vector<std::wstring>& arguments) {
     J result;
     try {
         auto root = executablePath().parent_path();
-        auto docs = readJson(root / L"command-help.json");
-        if (docs["schema"].str() != "pixforge.command-help/v4") throw CommandFailure("Command help is missing or incompatible; use the complete application package.");
         std::vector<std::wstring> rest;
         fs::path workspace = fs::current_path(), runtime, resultPath;
         bool machine = false, version = false;
@@ -130,6 +128,8 @@ inline int runNativeCommand(const std::vector<std::wstring>& arguments) {
             commandWrite(GetStdHandle(STD_OUTPUT_HANDLE), machine ? value.dump() + "\n" : "PixForge " + application["version"].str() + " / command API 4\n");
             return 0;
         }
+        auto docs = readJson(root / L"command-help.json");
+        if (docs["schema"].str() != "pixforge.command-help/v4") throw CommandFailure("Command help is missing or incompatible; use the complete application package.");
         if (!rest.empty() && rest[0] == L"help") { rest.erase(rest.begin()); rest.push_back(L"--help"); }
         if (rest.empty() || rest == std::vector<std::wstring>{L"--help"} || rest == std::vector<std::wstring>{L"-h"}) { help(docs["overview"]); return 0; }
         auto group = utf8(rest[0]);

@@ -1,6 +1,5 @@
-"""Application-owned command response artifacts and exit status."""
+"""Materialize preview files for native command responses."""
 import base64
-from pathlib import Path
 import uuid
 
 
@@ -27,22 +26,3 @@ def artifacts(data, runtime):
                 stream.write(html)
             data['html_path'] = str(path)
     return data
-
-
-def exit_code(data):
-    code = data.get('code', '')
-    if code in ('INVALID_ARGUMENT', 'UNKNOWN_ACTION'):
-        return 2
-    if code in ('REVISION_CONFLICT', 'DOCUMENT_CONFLICT', 'FILE_CONFLICT'):
-        return 3
-    if code == 'FILE_EXISTS':
-        return 4
-    if code == 'BUSY' or 'TIMEOUT' in code:
-        return 5
-    if 'APPROV' in code or 'CONFIRM' in code or 'STALE' in code or 'FINGERPRINT' in code:
-        return 6
-    if code in ('SESSION_UNAVAILABLE', 'NATIVE_UNAVAILABLE', 'DESKTOP_UNAVAILABLE'):
-        return 7
-    return 1
-
-

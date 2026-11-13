@@ -4,7 +4,6 @@ Native desktop orbiting uses its persistent C++/OpenGL renderer. This independen
 implementation produces discussion images and deterministic batch comparisons.
 """
 import base64
-from copy import deepcopy
 import math
 
 from PIL import Image, ImageDraw, ImageFont

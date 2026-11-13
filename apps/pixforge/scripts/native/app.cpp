@@ -1,5 +1,10 @@
+#include "window_images.hpp"
 #include "app.hpp"
 #include "uv.hpp"
+#include "rig_viewport.hpp"
+#include "rig_tools.hpp"
+#include "rig_components.hpp"
+#include "rig_face_uv.hpp"
 #include "scene_editor.hpp"
 #include "minecraft_editor.hpp"
 #include "minecraft_preview.hpp"
@@ -7,52 +12,63 @@
 #include "material_editor.hpp"
 
 namespace pf {
-static constexpr wchar_t PROJECT_FILTER[]=L"PixForge 工程 / PNG / 脚本\0*.pixforge;*.json;*.png;*.px\0所有文件\0*.*\0";
+static constexpr wchar_t PROJECT_FILTER[]=L"工程 / 模型 / 材质\0*.pixforge;*.bbmodel;*.json;*.png;*.px\0所有文件\0*.*\0";
 static constexpr wchar_t SAVE_FILTER[]=L"PixForge 工程\0*.pixforge\0";
-App::App(fs::path work,fs::path run,std::string path):workspace(fs::absolute(work)),runtime(fs::absolute(run)),startupPath(std::move(path)){
+App::App(fs::path work,fs::path run,std::string path,bool start):workspace(fs::absolute(work)),runtime(fs::absolute(run)),startupPath(std::move(path)){
     static bool registered=false;if(!registered){WNDCLASSEXW wc{sizeof wc};wc.lpfnWndProc=proc;wc.hInstance=GetModuleHandleW(nullptr);wc.lpszClassName=L"PixForgeNativeMain";wc.hCursor=LoadCursorW(nullptr,IDC_ARROW);applicationIcons(wc);RegisterClassExW(&wc);registered=true;}
     hwnd=CreateWindowExW(WS_EX_CONTROLPARENT,L"PixForgeNativeMain",L"PixForge",WS_OVERLAPPEDWINDOW|WS_CLIPCHILDREN,CW_USEDEFAULT,CW_USEDEFAULT,CW_USEDEFAULT,CW_USEDEFAULT,nullptr,nullptr,GetModuleHandleW(nullptr),this);if(!hwnd)throw std::runtime_error("Cannot create native window");dpi=int(GetDpiForWindow(hwnd));updateWindowIcons(hwnd);updateFont();create();
-    rpc=std::make_unique<Rpc>(hwnd,runtime);rpc->onError=[this](const J& value){error(value);};renderer=std::make_unique<Renderer>(hwnd);frontend=std::make_unique<Frontend>(hwnd,runtime/L"gui");SetTimer(hwnd,1,500,nullptr);SetTimer(hwnd,2,16,nullptr);layout();ShowWindow(hwnd,SW_SHOW);UpdateWindow(hwnd);fetch();
+    rpc=std::make_unique<Rpc>(hwnd,runtime);rpc->onError=[this](const J& value){error(value);};renderer=std::make_unique<Renderer>(hwnd);frontend=std::make_unique<Frontend>(hwnd,runtime/L"gui");SetTimer(hwnd,1,500,nullptr);SetTimer(hwnd,2,16,nullptr);if(start)startPage.show(false);else layout();ShowWindow(hwnd,SW_SHOW);UpdateWindow(hwnd);fetch();
     auto dwm=LoadLibraryW(L"dwmapi.dll");if(dwm){using Fn=HRESULT(WINAPI*)(HWND,DWORD,LPCVOID,DWORD);auto f=reinterpret_cast<Fn>(GetProcAddress(dwm,"DwmSetWindowAttribute"));BOOL enabled=TRUE;if(f)f(hwnd,20,&enabled,sizeof enabled);FreeLibrary(dwm);}
 }
-App::~App(){frontend.reset();renderer.reset();gpu.reset();rpc.reset();if(IsWindow(hwnd))DestroyWindow(hwnd);if(font)DeleteObject(font);if(boldFont)DeleteObject(boldFont);if(panOpen)DestroyCursor(panOpen);if(panClosed)DestroyCursor(panClosed);}
+App::~App(){frontend.reset();renderer.reset();gpu.reset();rpc.reset();if(IsWindow(hwnd))DestroyWindow(hwnd);if(font)DeleteObject(font);if(boldFont)DeleteObject(boldFont);}
 void App::updateFont(){if(font)DeleteObject(font);if(boldFont)DeleteObject(boldFont);font=CreateFontW(-MulDiv(10,dpi,72),0,0,0,FW_NORMAL,FALSE,FALSE,FALSE,DEFAULT_CHARSET,OUT_DEFAULT_PRECIS,CLIP_DEFAULT_PRECIS,CLEARTYPE_QUALITY,DEFAULT_PITCH,L"Microsoft YaHei UI");boldFont=CreateFontW(-MulDiv(10,dpi,72),0,0,0,FW_SEMIBOLD,FALSE,FALSE,FALSE,DEFAULT_CHARSET,OUT_DEFAULT_PRECIS,CLIP_DEFAULT_PRECIS,CLEARTYPE_QUALITY,DEFAULT_PITCH,L"Microsoft YaHei UI");for(auto& s:surfaces)s->font=font;EnumChildWindows(hwnd,[](HWND c,LPARAM f)->BOOL{SendMessageW(c,WM_SETFONT,WPARAM(f),TRUE);return TRUE;},LPARAM(font));}
 HWND App::button(HWND parent,std::string name,std::wstring title,std::function<void()> callback,std::function<bool()> checked){int id=nextButton++;HWND h=CreateWindowExW(0,L"BUTTON",title.c_str(),WS_CHILD|WS_VISIBLE|WS_TABSTOP|BS_OWNERDRAW,0,0,1,1,parent,reinterpret_cast<HMENU>(INT_PTR(id)),GetModuleHandleW(nullptr),nullptr);SendMessageW(h,WM_SETFONT,WPARAM(font),TRUE);buttons.emplace(id,Button{h,title,std::move(callback),std::move(checked)});handles[name]=h;installButtonFocus(h);return h;}
-HWND App::combo(HWND parent,std::string name,std::initializer_list<std::wstring> values){HWND h=CreateWindowExW(0,L"COMBOBOX",L"",WS_CHILD|WS_VISIBLE|WS_TABSTOP|CBS_DROPDOWNLIST|WS_VSCROLL,0,0,1,1,parent,reinterpret_cast<HMENU>(INT_PTR(nextButton++)),GetModuleHandleW(nullptr),nullptr);SendMessageW(h,WM_SETFONT,WPARAM(font),TRUE);for(auto& s:values)SendMessageW(h,CB_ADDSTRING,0,LPARAM(s.c_str()));comboSet(h,0);handles[name]=h;return h;}
+HWND App::combo(HWND parent,std::string name,std::initializer_list<std::wstring> values){HWND h=CreateWindowExW(0,L"COMBOBOX",L"",WS_CHILD|WS_VISIBLE|WS_TABSTOP|CBS_DROPDOWNLIST|WS_VSCROLL,0,0,1,1,parent,reinterpret_cast<HMENU>(INT_PTR(nextButton++)),GetModuleHandleW(nullptr),nullptr);SendMessageW(h,WM_SETFONT,WPARAM(font),TRUE);for(auto& s:values)SendMessageW(h,CB_ADDSTRING,0,LPARAM(s.c_str()));choice::styleSelect(h);comboSet(h,0);handles[name]=h;return h;}
 Surface* App::surface(HWND parent,int id,std::function<void(HDC,RECT)> draw){auto s=std::make_unique<Surface>(parent,id,font,std::move(draw));auto ptr=s.get();ptr->onError=[this](const std::string& error){panning=false;if(dragging||strokePending)endStroke(true);auto capture=GetCapture();if(capture&&(capture==hwnd||IsChild(hwnd,capture)))ReleaseCapture();message=L"无法完成操作："+wide(error);if(statusBar)statusBar->redraw();};surfaces.push_back(std::move(s));return ptr;}
 void App::error(const J& failure){
     message=wide(failure["code"].str()+": "+failure["error"].str());statusBar->redraw();std::string abandonedLease=lease;
     if(strokePending||strokeCommitting||dragging){if(stroke.before.w&&loaded)canvas.layers[canvas.active].image=stroke.before;dragging=strokePending=strokeCommitting=false;strokeReleased=false;lease.clear();canvas.composite();frameDirty=true;canvasView->redraw();}
     fetching=mutationPending=false;afterFetch={};userActions.clear();
+    if(startPage.visible)startPage.layout();
     if(!abandonedLease.empty()&&rpc){rpc->call(payload("stroke_end",J::object({{"lease",abandonedLease},{"cancel",true}})),[this](const J&){fetch();},true);return;}
     if(rpc&&rpc->idle()&&failure["code"].str()!="SESSION_UNAVAILABLE")fetch();
 }
 J App::tokens()const{return J::object({{"expected_document_id",state["document_id"]},{"expected_revision",state["revision"]}});}
 J App::payload(std::string action,J fields)const{fields["action"]=action;return fields;}
 bool App::canWrite()const{return !selecting&&!dragging&&!strokePending&&!strokeCommitting&&!fetching&&!mutationPending;}
-void App::mutate(std::string action,J fields,std::function<void(const J&)> after){if(!loaded||!canWrite()){message=L"正在提交或同步，请稍候。";statusBar->redraw();return;}playing=false;if(action=="open"||action=="new"||action=="create_project"){clearSelection();tool=HAND;pendingTool=-1;}mutationPending=true;auto observed=tokens();for(auto& [key,value]:observed.obj())fields[key]=value;rpc->call(payload(action,fields),[this,after](const J& response){if(response["state"].isObject())state=response["state"];if(after)after(response);fetch();});}
-void App::fetch(){if(!rpc||fetching||dragging||strokePending||strokeCommitting)return;fetching=true;rpc->call(payload("snapshot"),[this](const J& response){fetching=false;apply(response);});}
-void App::apply(const J& response){
-    bool first=!loaded;auto previous=snapshot["state"];snapshot=response;state=response["state"];
-    bool changedDocument=first||previous["document_id"]!=state["document_id"];
+void App::mutate(std::string action,J fields,std::function<void(const J&)> after){if(!loaded||!canWrite()){message=L"正在提交或同步，请稍候。";statusBar->redraw();return;}playing=false;if(action=="open"||action=="new"||action=="create_project"){clearSelection();tool=HAND;pendingTool=-1;}mutationPending=true;auto observed=tokens();for(auto& [key,value]:observed.obj())fields[key]=value;rpc->call(payload(action,std::move(fields)),[this,after](const J& response){if(after)after(response);fetch();});}
+void App::fetch(){if(!rpc||fetching||dragging||strokePending||strokeCommitting)return;fetching=true;rpc->call(payload("snapshot"),[this](J& response){fetching=false;apply(response);});}
+void App::apply(J& response){
+    // The visible canvas and state advance together, once per completed snapshot.
+    const J& previous=state;
+    J& incoming=response["state"];
+    bool first=!loaded,changedDocument=first||previous["document_id"]!=incoming["document_id"];
+    bool removedModel=!first&&!previous["shapes"]["model"].null()&&incoming["shapes"]["model"].null();
+    bool changedScene=changedDocument||previous["scene_animation"]!=incoming["scene_animation"];
     auto oldLayer=loaded?canvas.layers[canvas.active].name:std::string();
     auto oldRect=loaded&&frame>=0&&frame<int(previous["animation"]["rectangles"].size())?rectJson(previous["animation"]["rectangles"][frame]):Rect{};
     nativePatches=response["native_protocol"]["stroke_patches"].boolean();fastPoll=response["native_protocol"]["fast_poll"].boolean();
-    canvas=Canvas::decode(response["canvas"]);loaded=true;
+    canvas=Canvas::decode(response["canvas"]);state=std::move(incoming);loaded=true;
+    undoCount=response["undo_count"].integer();redoCount=response["redo_count"].integer();
     if(changedDocument){
         step=0;tool=HAND;pendingTool=-1;firstFit=true;playing=false;inspectorVisible=true;inspectorTab=0;uvGuides=false;timelineVisible=true;
         grid=tiled=onion=false;showModel=true;std::fill(std::begin(overlays),std::end(overlays),false);
         panel=state["shapes"]["model"].null()?0:1;yaw=25;pitch=20;sceneZoom=1;
-    }else if(!previous["shapes"]["model"].null()&&state["shapes"]["model"].null())panel=0;
+    }else if(removedModel)panel=0;
     step=pf::clamp(step,0,int(state["animation"]["steps"].size())-1);frame=state["animation"]["steps"][step]["frame"].integer();
+    numberField::range(sizeField,1,brushLimit());
     if(changedDocument||oldLayer!=canvas.layers[canvas.active].name||oldRect.json()!=currentRect().json())clearSelection();
-    if(changedDocument||previous["scene_animation"]!=state["scene_animation"])resetScenePlayer();
-    if(changedDocument||modelUv!=response["model_uv"]){modelUv=response["model_uv"];clearUvPin();}
+    if(changedScene)resetScenePlayer();
+    if(changedDocument||modelUv!=response["model_uv"]){modelUv=std::move(response["model_uv"]);clearUvPin();}
+    if(changedDocument){
+        hiddenSkin.fill(false);
+        if(playerSkin()){panel=0;inspectorTab=2;uvGuides=true;}
+    }
     if(first)readyTime=milliseconds()-bootTime;
-    mutationPending=false;refresh();
+    mutationPending=false;loadStudio(changedDocument);refresh();
     if(pendingTool>=0){int requested=pendingTool;pendingTool=-1;selectTool(requested);}
-    if(firstFit){firstFit=false;fit();}
-    if(!startupPath.empty()){auto path=startupPath;startupPath.clear();mutate("open",J::object({{"path",path}}));}
+    if(firstFit&&!startPage.visible){firstFit=false;fit();}
+    if(!startupPath.empty()){auto path=std::move(startupPath);startupPath.clear();openProject(fs::path(wide(path)));}
     if(afterFetch){auto next=std::move(afterFetch);afterFetch={};next();}
     while(canWrite()&&!userActions.empty()){auto action=std::move(userActions.front());userActions.pop_front();action();}
 }
@@ -61,13 +77,22 @@ void App::refresh(){
     loading=true;frameDirty=true;frameCache=-1;renderKey.clear();message.clear();
     refreshPalette();
     syncLayers();
-    EnableWindow(handles.at("undo"),snapshot["undo_count"].integer()>0);EnableWindow(handles.at("redo"),snapshot["redo_count"].integer()>0);
+    refreshRigTree();
+    EnableWindow(handles.at("undo"),undoCount>0);EnableWindow(handles.at("redo"),redoCount>0);
     if(adjusting()&&!canvas.layers[canvas.active].visible)message=L"当前图层已隐藏";
     loading=false;layout();syncPlayback();canvasView->redraw();details->redraw();
 }
 Rect App::currentRect()const{if(!loaded)return{0,0,32,32};return rectJson(state["animation"]["rectangles"][frame]);}
 bool App::saveBefore(std::function<void()> next){if(!loaded||!canWrite())return false;if(!state["dirty"].boolean()){next();return true;}int answer=MessageBoxW(hwnd,L"当前工程尚未保存。先保存可编辑工程，再继续？\n选择“否”会保留核心恢复稿。",L"PixForge",MB_YESNOCANCEL|MB_ICONQUESTION);if(answer==IDCANCEL)return false;if(answer==IDNO){next();return true;}auto observed=tokens();fs::path path=state["project_path"].isString()?fs::path(wide(state["project_path"].str())):chooseFile(hwnd,workspace/L"未命名.pixforge",true,SAVE_FILTER,L"pixforge");if(path.empty())return false;if(observed!=tokens())throw std::runtime_error("工程已变化，请重新保存");afterFetch=std::move(next);mutate("save",J::object({{"path",pathText(path)}}));return true;}
-void App::openProject(fs::path path){if(!loaded||!canWrite())return;auto observed=tokens();if(path.empty())path=chooseFile(hwnd,workspace,false,PROJECT_FILTER,nullptr);if(path.empty())return;if(observed!=tokens())throw std::runtime_error("工程已变化，请重新打开文件");saveBefore([this,path]{firstFit=true;step=frame=0;mutate("open",J::object({{"path",pathText(path)}}));});}
+void App::openProject(fs::path path,std::string armModel){
+    if(!loaded||!canWrite())return;auto observed=tokens();
+    if(path.empty())path=chooseFile(hwnd,workspace,false,armModel.empty()?PROJECT_FILTER:L"玩家皮肤 PNG\0*.png\0",nullptr);
+    if(path.empty())return;
+    if(observed!=tokens())throw std::runtime_error("工程已变化，请重新打开文件");
+    saveBefore([this,path,armModel]{firstFit=true;step=frame=0;J options=J::object({{"path",pathText(path)}});
+        if(!armModel.empty())options["arm_model"]=armModel;
+        mutate("open",options,[this](const J&){if(startPage.visible)afterFetch=[this]{startPage.hide();};});});
+}
 void App::saveProject(bool as){if(!loaded||!canWrite())return;auto observed=tokens();fs::path path=state["project_path"].isString()?fs::path(wide(state["project_path"].str())):workspace/L"未命名.pixforge";if(as||state["project_path"].null())path=chooseFile(hwnd,path,true,SAVE_FILTER,L"pixforge");if(path.empty())return;if(observed!=tokens())throw std::runtime_error("工程已变化，请重新保存");mutate("save",J::object({{"path",pathText(path)}}));}
 void App::exportPng(){
     if(!loaded||!canWrite())return;auto observed=tokens();
@@ -81,8 +106,8 @@ void App::exportPng(){
     });
 }
 void App::seek(int target,bool pause){if(!loaded||!canWrite())return;if(pause){playing=false;double time=0;for(int i=0;i<pf::clamp(target,0,int(state["animation"]["steps"].size())-1);++i)time+=state["animation"]["steps"][i]["duration_ms"].number();if(scenePlayer)scenePlayer->setTextureTime(time);else elapsed=time;playStart=milliseconds();}int previousFrame=frame;step=pf::clamp(target,0,int(state["animation"]["steps"].size())-1);frame=state["animation"]["steps"][step]["frame"].integer();if(frame!=previousFrame){clearSelection();uvX=uvY=-1;if(!uvRegion.empty())details->redraw();else clearUvPin();}frameDirty=true;++frameSwitches;canvasView->redraw();details->redraw();syncPlayback();statusBar->redraw();requestRender();if(frame!=previousFrame)syncLayers();if(pause)rpc->call(payload("view",J::object({{"frame",frame}})),{},true);}
-void App::playback(){if(!playing||!loaded||!canWrite())return;double now=milliseconds();if(IsIconic(hwnd)){playStart=now;return;}double delta=now-playStart;playStart=now;if(scenePlayer){advanceProgram(delta);if(now-lastSceneTick>=(gpu&&gpu->available?16:50)){lastSceneTick=now;requestRender();timeline->redraw();}return;}elapsed+=delta;auto& steps=state["animation"]["steps"];double total=0;for(auto& item:steps.arr())total+=item["duration_ms"].number();double at=state["animation"]["loop"].boolean()?std::fmod(elapsed,total):pf::min(elapsed,total-.0000001);double t=0;int found=int(steps.size()-1);for(int i=0;i<int(steps.size());++i){t+=steps[i]["duration_ms"].number();if(at<t){found=i;break;}}if(found!=step)seek(found,false);if(!state["scene_animation"].null()){double duration=state["scene_animation"]["duration_ms"].number();if(!state["scene_animation"]["loop"].boolean()&&elapsed>=duration){elapsed=duration;playing=false;syncPlayback();}if(now-lastSceneTick>=(gpu&&gpu->available?16:50)){lastSceneTick=now;requestRender();timeline->redraw();}}else if(!state["animation"]["loop"].boolean()&&elapsed>=total){playing=false;syncPlayback();}}
-void App::seekTime(double value,bool pause){if(!loaded||!canWrite())return;if(pause)playing=false;if(scenePlayer){scenePlayer->seek(pf::clamp(value,0.,sceneDuration()));elapsed=scenePlayer->clock();playStart=milliseconds();programTextureStep();syncStateControls();timeline->redraw();requestRender();return;}elapsed=pf::clamp(value,0.,state["scene_animation"]["duration_ms"].number());playStart=milliseconds();double total=0;for(auto& s:state["animation"]["steps"].arr())total+=s["duration_ms"].number();double at=state["animation"]["loop"].boolean()?std::fmod(elapsed,total):pf::min(elapsed,total-1e-7),sum=0;int found=0;for(auto& s:state["animation"]["steps"].arr()){sum+=s["duration_ms"].number();if(at<sum)break;++found;}seek(pf::clamp(found,0,int(state["animation"]["steps"].size())-1),false);timeline->redraw();requestRender();}
+void App::playback(){if(!playing||!loaded||!canWrite())return;double now=milliseconds();if(studio()){if(now-lastSceneTick<30)return;lastSceneTick=now;rigTime+=now-playStart;playStart=now;if(rigTime>=rigEnd){if(rigLoop)rigTime=std::fmod(rigTime,rigEnd);else{rigTime=rigEnd;playing=false;}}rigFocusedKey();redrawRig();syncPlayback();return;}if(IsIconic(hwnd)){playStart=now;return;}double delta=now-playStart;playStart=now;if(scenePlayer){advanceProgram(delta);if(now-lastSceneTick>=(gpu&&gpu->available?16:50)){lastSceneTick=now;requestRender();timeline->redraw();}return;}elapsed+=delta;auto& steps=state["animation"]["steps"];double total=0;for(auto& item:steps.arr())total+=item["duration_ms"].number();double at=state["animation"]["loop"].boolean()?std::fmod(elapsed,total):pf::min(elapsed,total-.0000001);double t=0;int found=int(steps.size()-1);for(int i=0;i<int(steps.size());++i){t+=steps[i]["duration_ms"].number();if(at<t){found=i;break;}}if(found!=step)seek(found,false);if(!state["scene_animation"].null()){double duration=state["scene_animation"]["duration_ms"].number();if(!state["scene_animation"]["loop"].boolean()&&elapsed>=duration){elapsed=duration;playing=false;syncPlayback();}if(now-lastSceneTick>=(gpu&&gpu->available?16:50)){lastSceneTick=now;requestRender();timeline->redraw();}}else if(!state["animation"]["loop"].boolean()&&elapsed>=total){playing=false;syncPlayback();}}
+void App::seekTime(double value,bool pause){if(!loaded||!canWrite())return;if(pause)playing=false;if(studio()){rigTime=pf::clamp(value,0.,rigEnd);rigFocusedKey();redrawRig();syncPlayback();return;}if(scenePlayer){scenePlayer->seek(pf::clamp(value,0.,sceneDuration()));elapsed=scenePlayer->clock();playStart=milliseconds();programTextureStep();syncStateControls();timeline->redraw();requestRender();return;}elapsed=pf::clamp(value,0.,state["scene_animation"]["duration_ms"].number());playStart=milliseconds();double total=0;for(auto& s:state["animation"]["steps"].arr())total+=s["duration_ms"].number();double at=state["animation"]["loop"].boolean()?std::fmod(elapsed,total):pf::min(elapsed,total-1e-7),sum=0;int found=0;for(auto& s:state["animation"]["steps"].arr()){sum+=s["duration_ms"].number();if(at<sum)break;++found;}seek(pf::clamp(found,0,int(state["animation"]["steps"].size())-1),false);timeline->redraw();requestRender();}
 void App::setColor(Pixel c){
     ink=c;auto hsv=toHsv(c);if(hsv[1]>0)colorHue=hsv[0];
     InvalidateRect(handles.at("color_chip"),nullptr,FALSE);colorField->redraw();swatches->redraw();
@@ -90,19 +115,54 @@ void App::setColor(Pixel c){
 void App::setZoom(double value,int x,int y){pixelAutoFit=false;value=pf::clamp(value,.01,64.);if(x>=0&&y>=0){RECT r;GetClientRect(canvasView->hwnd,&r);auto rect=currentRect();int n=tiled?3:1;double ox=(r.right-rect.w*n*zoom)/2.+panX,oy=(r.bottom-rect.h*n*zoom)/2.+panY;double ix=(x-ox)/zoom,iy=(y-oy)/zoom;panX=x-ix*value-(r.right-rect.w*n*value)/2.;panY=y-iy*value-(r.bottom-rect.h*n*value)/2.;}zoom=value;canvasView->redraw();statusBar->redraw();syncButtons();}
 void App::fit(){if(panel==1){sceneZoom=1;requestRender();statusBar->redraw();return;}RECT r;GetClientRect(canvasView->hwnd,&r);auto f=currentRect();int n=tiled?3:1;panX=panY=0;setZoom(pf::min((r.right-D(72))/double(f.w*n),(r.bottom-D(72))/double(f.h*n)));pixelAutoFit=true;}
 void App::frameCacheUpdate(){
-    if(!loaded)return;if(!frameDirty&&frameCache==frame)return;auto r=currentRect();frameImage=canvas.composed.crop(r);
-    if(onion&&state["animation"]["steps"].size()>1){Image ghost(r.w,r.h);int count=int(state["animation"]["steps"].size());for(int direction:{-1,1}){int index=step+direction;if(state["animation"]["loop"].boolean())index=(index%count+count)%count;if(index<0||index>=count)continue;int sourceFrame=state["animation"]["steps"][index]["frame"].integer();auto bounds=rectJson(state["animation"]["rectangles"][sourceFrame]);Pixel tint=direction==-1?Pixel{92,182,231,72}:Pixel{233,118,147,64};for(int y=0;y<r.h;++y)for(int x=0;x<r.w;++x){auto c=tint;c[3]=uint8_t(rounded(canvas.composed.get(bounds.x+x,bounds.y+y)[3]*tint[3]/255.));ghost.set(x,y,over(ghost.get(x,y),c));}}for(int y=0;y<r.h;++y)for(int x=0;x<r.w;++x)frameImage.set(x,y,over(ghost.get(x,y),frameImage.get(x,y)));}
-    frameDib.resize(size_t(r.w)*r.h);for(int y=0;y<r.h;++y)for(int x=0;x<r.w;++x){auto c=frameImage.get(x,y);Pixel bg=((x/4+y/4)%2?Pixel{65,70,80,255}:Pixel{55,59,68,255});double a=c[3]/255.;int red=rounded(c[0]*a+bg[0]*(1-a)),green=rounded(c[1]*a+bg[1]*(1-a)),blue=rounded(c[2]*a+bg[2]*(1-a));frameDib[size_t(y)*r.w+x]=uint32_t((red<<16)|(green<<8)|blue);}frameCache=frame;frameDirty=false;
+    if(!loaded)return;
+    auto frameRect=currentRect();
+    bool full=frameDirty||frameCache!=frame;
+    if(!full&&!framePatch.w)return;
+    auto area=full?frameRect:intersect(frameRect,framePatch);
+    frameWidth=frameRect.w;frameHeight=frameRect.h;frameDib.resize(size_t(frameWidth)*frameHeight);
+    const auto& animation=static_cast<const J&>(state)["animation"];
+    int count=int(animation["steps"].size());Rect neighbors[2]{};
+    if(onion&&count>1)for(int i=0;i<2;++i){
+        int k=step+(i?1:-1);if(animation["loop"].boolean())k=(k+count)%count;
+        if(k>=0&&k<count)neighbors[i]=rectJson(animation["rectangles"][animation["steps"][k]["frame"].integer()]);
+    }
+    for(int y=area.y;y<area.y+area.h;++y)for(int x=area.x;x<area.x+area.w;++x){
+        int fx=x-frameRect.x,fy=y-frameRect.y;auto c=canvas.composed.get(x,y);
+        if(onion&&count>1){
+            Pixel ghost{};for(int i=0;i<2;++i)if(neighbors[i].w){
+                Pixel tint=i?Pixel{233,118,147,64}:Pixel{92,182,231,72};
+                tint[3]=uint8_t(rounded(canvas.composed.get(neighbors[i].x+fx,neighbors[i].y+fy)[3]*tint[3]/255.));
+                ghost=over(ghost,tint);
+            }c=over(ghost,c);
+        }
+        Pixel bg=(fx/4+fy/4)%2?Pixel{65,70,80,255}:Pixel{55,59,68,255};
+        unsigned alpha=c[3];auto mix=[&](int i){return (c[i]*alpha+bg[i]*(255-alpha)+127)/255;};
+        frameDib[size_t(fy)*frameWidth+fx]=(mix(0)<<16)|(mix(1)<<8)|mix(2);
+    }
+    frameCache=frame;frameDirty=false;framePatch={};
 }
-void App::paintCanvas(HDC dc,RECT area){double started=milliseconds();fill(dc,area,rgb(backgroundPixel(-1)));if(!loaded){text(dc,message,area,RGB(147,154,169),DT_CENTER|DT_VCENTER|DT_SINGLELINE);return;}frameCacheUpdate();int n=tiled?3:1;double w=frameImage.w*zoom,h=frameImage.h*zoom,ox=(area.right-w*n)/2.+panX,oy=(area.bottom-h*n)/2.+panY;
-    BITMAPINFO info{};info.bmiHeader.biSize=sizeof(BITMAPINFOHEADER);info.bmiHeader.biWidth=frameImage.w;info.bmiHeader.biHeight=-frameImage.h;info.bmiHeader.biPlanes=1;info.bmiHeader.biBitCount=32;info.bmiHeader.biCompression=BI_RGB;SetStretchBltMode(dc,COLORONCOLOR);
-    for(int b=0;b<n;++b)for(int a=0;a<n;++a){int x=rounded(ox+a*w),y=rounded(oy+b*h),rw=rounded(ox+(a+1)*w)-x,rh=rounded(oy+(b+1)*h)-y;StretchDIBits(dc,x,y,rw,rh,0,0,frameImage.w,frameImage.h,frameDib.data(),&info,DIB_RGB_COLORS,SRCCOPY);if(grid&&zoom>=6){for(int xx=0;xx<=frameImage.w;++xx){int sx=rounded(x+xx*zoom);if(sx>=0&&sx<area.right)line(dc,sx,pf::max(0,y),sx,pf::min(area.bottom,y+rh),RGB(69,72,82));}for(int yy=0;yy<=frameImage.h;++yy){int sy=rounded(y+yy*zoom);if(sy>=0&&sy<area.bottom)line(dc,pf::max(0,x),sy,pf::min(area.right,x+rw),sy,RGB(69,72,82));}}}
+void App::drawFrame(HDC dc,RECT dest)const{
+    BITMAPINFO info{};info.bmiHeader.biSize=sizeof(BITMAPINFOHEADER);info.bmiHeader.biWidth=frameWidth;info.bmiHeader.biHeight=-frameHeight;info.bmiHeader.biPlanes=1;info.bmiHeader.biBitCount=32;info.bmiHeader.biCompression=BI_RGB;
+    SetStretchBltMode(dc,COLORONCOLOR);StretchDIBits(dc,dest.left,dest.top,dest.right-dest.left,dest.bottom-dest.top,0,0,frameWidth,frameHeight,frameDib.data(),&info,DIB_RGB_COLORS,SRCCOPY);
+}
+void App::paintCanvas(HDC dc,RECT area){double started=milliseconds();fill(dc,area,rgb(backgroundPixel(-1)));if(!loaded){text(dc,message,area,RGB(147,154,169),DT_CENTER|DT_VCENTER|DT_SINGLELINE);return;}frameCacheUpdate();int n=tiled?3:1;double w=frameWidth*zoom,h=frameHeight*zoom,ox=(area.right-w*n)/2.+panX,oy=(area.bottom-h*n)/2.+panY;
+    for(int b=0;b<n;++b)for(int a=0;a<n;++a){int x=rounded(ox+a*w),y=rounded(oy+b*h),rw=rounded(ox+(a+1)*w)-x,rh=rounded(oy+(b+1)*h)-y;drawFrame(dc,{x,y,x+rw,y+rh});if(grid&&zoom>=6){for(int xx=0;xx<=frameWidth;++xx){int sx=rounded(x+xx*zoom);if(sx>=0&&sx<area.right)line(dc,sx,pf::max(0,y),sx,pf::min(area.bottom,y+rh),RGB(69,72,82));}for(int yy=0;yy<=frameHeight;++yy){int sy=rounded(y+yy*zoom);if(sy>=0&&sy<area.bottom)line(dc,pf::max(0,x),sy,pf::min(area.right,x+rw),sy,RGB(69,72,82));}}}
     if(tiled){int x=rounded(ox+w),y=rounded(oy+h);line(dc,x,y,rounded(x+w),y,RGB(155,147,255));line(dc,x,y,x,rounded(y+h),RGB(155,147,255));line(dc,rounded(x+w),y,rounded(x+w),rounded(y+h),RGB(155,147,255));line(dc,x,rounded(y+h),rounded(x+w),rounded(y+h),RGB(155,147,255));}
     paintUvGuides(dc,area,ox,oy,n);
     if(selection.w>0){auto f=currentRect();for(int b=0;b<n;++b)for(int a=0;a<n;++a){RECT r{rounded(ox+a*w+(selection.x-f.x)*zoom),rounded(oy+b*h+(selection.y-f.y)*zoom),rounded(ox+a*w+(selection.x-f.x+selection.w)*zoom),rounded(oy+b*h+(selection.y-f.y+selection.h)*zoom)};auto brush=SelectObject(dc,GetStockObject(NULL_BRUSH));HPEN white=CreatePen(PS_SOLID,1,RGB(255,255,255)),dash=CreatePen(PS_DOT,1,RGB(0,0,0));auto old=SelectObject(dc,white);Rectangle(dc,r.left,r.top,r.right,r.bottom);SelectObject(dc,dash);SetBkMode(dc,TRANSPARENT);Rectangle(dc,r.left,r.top,r.right,r.bottom);SelectObject(dc,old);SelectObject(dc,brush);DeleteObject(white);DeleteObject(dash);}}
     ++paintCount;paintSamples.push_back(milliseconds()-started);if(paintSamples.size()>4096)paintSamples.erase(paintSamples.begin(),paintSamples.begin()+2048);
 }
-HCURSOR App::canvasCursor(){if(cursorDpi!=dpi){auto open=makePanCursor(dpi,false),closed=makePanCursor(dpi,true);auto current=GetCursor();if(current==panOpen&&panOpen)SetCursor(open?open:LoadCursorW(nullptr,IDC_HAND));if(current==panClosed&&panClosed)SetCursor(closed?closed:LoadCursorW(nullptr,IDC_HAND));if(panOpen)DestroyCursor(panOpen);if(panClosed)DestroyCursor(panClosed);panOpen=open;panClosed=closed;cursorDpi=dpi;}bool hand=panning||tool==HAND||(GetKeyState(VK_SPACE)&0x8000);if(hand)return (panning?panClosed:panOpen)?(panning?panClosed:panOpen):LoadCursorW(nullptr,IDC_HAND);return LoadCursorW(nullptr,IDC_ARROW);}
+int App::canvasCursorSlot()const{
+    if(panning)return GRABBING;
+    // A temporary mode changes the next click, not a stroke already in progress.
+    if(!dragging&&!selecting&&!movingSelection){
+        if(tool==HAND||(GetKeyState(VK_SPACE)&0x8000))return HAND;
+        if(GetKeyState(VK_MENU)&0x8000)return PICKER;
+    }
+    return tool;
+}
+HCURSOR App::canvasCursor(){return canvasCursors.get(canvasCursorSlot(),dpi);}
 void App::updateCanvasCursor(){if(!canvasView||panel!=0)return;POINT at;if((GetCapture()==canvasView->hwnd)||(GetCursorPos(&at)&&WindowFromPoint(at)==canvasView->hwnd))SetCursor(canvasCursor());}
 LRESULT App::canvasEvent(UINT m,WPARAM w,LPARAM l){
     if(!loaded)return UNHANDLED;if(m==WM_SETCURSOR){SetCursor(canvasCursor());return TRUE;}int x=GET_X_LPARAM(l),y=GET_Y_LPARAM(l);RECT area;GetClientRect(canvasView->hwnd,&area);
@@ -118,15 +178,17 @@ LRESULT App::canvasEvent(UINT m,WPARAM w,LPARAM l){
     return UNHANDLED;
 }
 void App::beginStroke(int x,int y){
+    if(brushOpacity==0)return;
     if(!canWrite()||!canvas.layers[canvas.active].visible)return;playing=false;stroke=Stroke();stroke.tool=TOOLS[tool];stroke.ink=ink;stroke.size=brushSize;stroke.opacity=brushOpacity/100.;stroke.mx=mirrorX;stroke.my=mirrorY;stroke.solid=solid;if(selection.w&&!selection.contains(x,y))return;stroke.begin(canvas.layers[canvas.active].image,currentRect(),x,y);stroke.clip=selection;strokeRegion={x,y,1,1};fillApplied=false;startLease();moveStroke(x,y);
 }
 void App::startLease(){playing=false;dragging=strokePending=true;strokeReleased=strokeCancelled=false;lease.clear();lastRecovery=milliseconds();auto request=tokens();request["frame"]=frame;if(!nativePatches)rpc->call(payload("view",J::object({{"frame",frame}})),{},true);rpc->call(payload("stroke_begin",request),[this](const J& result){strokePending=false;lease=result["lease"].str();if(strokeReleased)commitStroke();});}
-void App::moveStroke(int x,int y){if(!dragging)return;if(stroke.tool=="fill"&&fillApplied)return;if(stroke.tool=="fill")fillApplied=true;double start=milliseconds();auto dirty=stroke.draw(canvas.layers[canvas.active].image,x,y);int right=pf::max(strokeRegion.x+strokeRegion.w,dirty.x+dirty.w),bottom=pf::max(strokeRegion.y+strokeRegion.h,dirty.y+dirty.h);strokeRegion.x=pf::min(strokeRegion.x,dirty.x);strokeRegion.y=pf::min(strokeRegion.y,dirty.y);strokeRegion.w=right-strokeRegion.x;strokeRegion.h=bottom-strokeRegion.y;canvas.composite(dirty);frameDirty=true;canvasView->redraw();if(inspectorVisible)details->redraw();strokeSamples.push_back(milliseconds()-start);if(strokeSamples.size()>4096)strokeSamples.erase(strokeSamples.begin(),strokeSamples.begin()+2048);}
+void App::moveStroke(int x,int y){if(!dragging)return;if(stroke.tool=="fill"&&fillApplied)return;if(stroke.tool=="fill")fillApplied=true;double start=milliseconds();auto dirty=stroke.draw(canvas.layers[canvas.active].image,x,y);if(!dirty.w)return;strokeRegion=unite(strokeRegion,dirty);canvas.composite(dirty);
+    if(onion)frameDirty=true;else framePatch=unite(framePatch,dirty);canvasView->redraw();if(inspectorVisible)details->redraw();strokeSamples.push_back(milliseconds()-start);if(strokeSamples.size()>4096)strokeSamples.erase(strokeSamples.begin(),strokeSamples.begin()+2048);}
 void App::endStroke(bool cancel){if(!selecting&&!dragging&&!strokePending)return;dragging=false;strokeReleased=true;strokeCancelled=cancel;if(cancel){if(movingSelection)selection=selectionStart;canvas.layers[canvas.active].image=stroke.before;canvas.composite();frameDirty=true;canvasView->redraw();}if(!lease.empty())commitStroke();}
 void App::commitStroke(){
     if(strokeCommitting||lease.empty())return;strokeCommitting=true;
-    auto finish=[this]{rpc->call(payload("stroke_end",J::object({{"lease",lease},{"cancel",strokeCancelled}})),[this](const J& result){strokeCommitting=false;strokePending=false;strokeReleased=false;lease.clear();state=result["state"];fetch();});};
-    if(strokeCancelled){finish();return;}if(!nativePatches){rpc->call(payload("stroke_end",J::object({{"lease",lease},{"canvas",canvas.encode()}})),[this](const J& result){strokeCommitting=strokePending=strokeReleased=false;lease.clear();state=result["state"];fetch();});return;}
+    auto finish=[this]{rpc->call(payload("stroke_end",J::object({{"lease",lease},{"cancel",strokeCancelled}})),[this](const J&){strokeCommitting=false;strokePending=false;strokeReleased=false;lease.clear();fetch();});};
+    if(strokeCancelled){finish();return;}if(!nativePatches){rpc->call(payload("stroke_end",J::object({{"lease",lease},{"canvas",canvas.encode()}})),[this](const J&){strokeCommitting=strokePending=strokeReleased=false;lease.clear();fetch();});return;}
     auto candidate=std::make_shared<Image>(canvas.layers[canvas.active].image.crop(strokeRegion));auto row=std::make_shared<int>(0);auto continuation=std::make_shared<std::function<void()>>();std::weak_ptr<std::function<void()>> weak=continuation;std::string layerName=canvas.layers[canvas.active].name;
     *continuation=[this,candidate,row,finish,weak,layerName]{if(*row>=candidate->h){finish();return;}int rows=pf::min(candidate->h-*row,pf::max(1,262144/candidate->w));auto patch=candidate->crop({0,*row,candidate->w,rows});J request=J::object({{"lease",lease},{"layer",layerName},{"rect",J::array({strokeRegion.x,strokeRegion.y+*row,candidate->w,rows})},{"data",base64(patch.bytes)}});*row+=rows;auto hold=weak.lock();rpc->call(payload("stroke_patch",request),[hold](const J&){if(hold)(*hold)();});};(*continuation)();
 }
@@ -148,42 +210,75 @@ J App::controls()const{
         rows.arr().push_back(J::object({{"name",name},{"id",GetDlgCtrlID(h)},{"class",utf8(Form::className(h))},{"label",stringEdit(h)},
             {"on_screen",true},{"enabled",IsWindowEnabled(h)!=FALSE},{"checked",b!=buttons.end()&&b->second.checked?J(b->second.checked()):J()}}));
     }
-    return J::object({{"schema","pixelforge.native-controls/v1"},{"panel",panel?"shapes":"pixels"},{"window_visible",IsWindowVisible(hwnd)!=FALSE},{"controls",rows}});
+    return J::object({{"schema","pixelforge.native-controls/v1"},{"panel",startPage.visible?"start":panel?"shapes":"pixels"},{"window_visible",IsWindowVisible(hwnd)!=FALSE},{"controls",rows}});
+}
+J App::hiddenSkinOverlays()const{
+    J names=J::array();
+    if(playerSkin())for(size_t i=0;i<hiddenSkin.size();++i)if(hiddenSkin[i])names.arr().push_back(SKIN_SWITCHES[i]);
+    return names;
+}
+Image App::modelTexture()const{
+    Image image=canvas.composed.crop(currentRect());
+    if(!playerSkin())return image;
+    for(const auto& [name,part]:modelUv["player_skin"]["parts"].obj()){
+        auto sw=std::find(SKIN_SWITCHES.begin(),SKIN_SWITCHES.end(),part["overlay"].str());
+        if(sw==SKIN_SWITCHES.end()||!hiddenSkin[size_t(sw-SKIN_SWITCHES.begin())])continue;
+        for(const auto& [side,box]:part["outer"]["faces"].obj()){
+            Rect r=rectJson(box);
+            for(int y=r.y;y<r.y+r.h;++y)for(int x=r.x;x<r.x+r.w;++x)image.set(x,y,{0,0,0,0});
+        }
+    }
+    return image;
+}
+std::vector<std::string> App::visibleOverlays()const{
+    constexpr std::array<const char*,3> names={"base","collision","selection"};
+    std::vector<std::string> active;for(int i=0;i<3;++i)if(overlays[i])active.emplace_back(names[i]);
+    return active;
 }
 void App::requestRender(){
-    if(!loaded||!renderer||panel==0)return;
+    if(startPage.visible||!loaded||!renderer||panel==0)return;
+    if(studio()){sceneView->redraw();if(rigGraph)rigGraph->redraw();return;}
     std::string context=state["content_digest"].str()+":"+std::to_string(panel)+":"+std::to_string(frame)+":";for(bool b:overlays)context+=b?'1':'0';context+=showModel?'1':'0';
+    if(playerSkin())context+=hiddenSkinOverlays().dump();
     std::string geometryContext=context;context+=":studio";std::string key=context+":"+J(yaw).dump()+":"+J(pitch).dump()+":zoom:"+J(sceneZoom).dump();if(panel==1&&!state["scene_animation"].null())key+=":scene:"+J(sceneTime(state["scene_animation"],elapsed)).dump();if(scenePlayer)key+=":state:"+scenePlayer->state+":"+std::to_string(scenePlayer->generation)+":local:"+J(scenePlayer->at).dump();if(key==renderKey)return;renderKey=key;sceneContext=context;++sceneSerial;
     if(gpu&&gpu->available){
-        gpu->setBackground(3);if(gpuContext!=geometryContext){std::vector<std::string> visible;for(int i=0;i<3;++i)if(overlays[i])visible.push_back(std::array<std::string,3>{"base","collision","selection"}[i]);gpu->configure(state["shapes"],canvas.composed.crop(currentRect()),visible,showModel,state["scene_animation"]);gpuContext=geometryContext;}
+        gpu->setBackground(3);if(gpuContext!=geometryContext){gpu->configure(state["shapes"],modelTexture(),visibleOverlays(),showModel,state["scene_animation"]);gpuContext=geometryContext;}
         gpu->time(elapsed);gpu->angles(yaw,pitch);gpu->magnification(sceneZoom);gpu->playback(scenePlayer?scenePlayer->view():J());sceneView->redraw();
         // Continuous orbit updates a persistent GPU scene only. A software hit
         // map is refreshed on release, not once per incoming mouse event.
         if(panning||(panel==1&&!state["scene_animation"].null()))return;
     }
-    auto found=renderCache.find(key);if(found!=renderCache.end()){rendered=std::make_shared<RenderReady>(*found->second);rendered->serial=sceneSerial;sceneView->redraw();return;}
-    RenderJob job;job.key=key;job.background=3;job.context=context;job.serial=sceneSerial;job.definition=state["shapes"];job.scene=panel==1?state["scene_animation"]:J();job.time=elapsed;job.sceneView=scenePlayer?scenePlayer->view():J();job.atlas=canvas.composed.crop(currentRect());job.size=400;job.yaw=yaw;job.pitch=pitch;job.zoom=sceneZoom;for(int i=0;i<3;++i)if(overlays[i])job.overlays.push_back(std::array<std::string,3>{"base","collision","selection"}[i]);job.showModel=showModel;renderer->submit(std::move(job));sceneView->redraw();
+    auto found=renderCache.find(key);if(found!=renderCache.end()){rendered=found->second;presentedSerial=sceneSerial;sceneView->redraw();return;}
+    RenderJob job;job.key=key;job.background=3;job.context=context;job.serial=sceneSerial;job.definition=state["shapes"];job.scene=panel==1?state["scene_animation"]:J();job.time=elapsed;job.sceneView=scenePlayer?scenePlayer->view():J();job.atlas=modelTexture();job.size=400;job.yaw=yaw;job.pitch=pitch;job.zoom=sceneZoom;job.overlays=visibleOverlays();job.showModel=showModel;renderer->submit(std::move(job));sceneView->redraw();
 }
 void App::renderComplete(RenderReady* value){auto result=std::shared_ptr<RenderReady>(value);++renderCount;lastRenderMs=result->ms;if(!renderCache.count(result->key))renderOrder.push_back(result->key);renderCache[result->key]=result;while(renderOrder.size()>16){renderCache.erase(renderOrder.front());renderOrder.pop_front();}
     // An orbit frame remains valid when a newer angle is already queued. Present
     // every newly completed frame for the same document/texture/overlay context.
-    if(result->context==sceneContext&&(!rendered||rendered->context!=sceneContext||result->serial>=rendered->serial)){rendered=result;sceneView->redraw();}}
+    if(result->context==sceneContext&&(!rendered||rendered->context!=sceneContext||result->serial>=presentedSerial)){rendered=result;presentedSerial=result->serial;sceneView->redraw();}}
 void App::paintScene(HDC dc,RECT r){
+    if(studio()){studioPaint(dc,r);return;}
     if(gpu&&gpu->ready()){auto image=gpu->readback();imageToDC(dc,image,r,false);return;}
     fill(dc,r,rgb(backgroundPixel(-1)));if(rendered){auto& image=rendered->result.image;double ratio=pf::min((r.right-D(16))/double(image.w),(r.bottom-D(24))/double(image.h));int w=rounded(image.w*ratio),h=rounded(image.h*ratio),x=(r.right-w)/2,y=(r.bottom-h)/2;imageToDC(dc,image,{x,y,x+w,y+h},false);for(size_t i=0;i<rendered->result.lines.size();++i){auto segment=rendered->result.lines[i];line(dc,x+rounded(segment[0].x*ratio),y+rounded(segment[0].y*ratio),x+rounded(segment[1].x*ratio),y+rounded(segment[1].y*ratio),rgb(rendered->result.lineColors[i]));}}
     if(!rendered||rendered->context!=sceneContext)text(dc,L"正在载入模型…",{D(13),r.bottom-D(35),r.right,r.bottom-D(10)},RGB(155,147,255));}
 static J sampleSummary(const std::vector<double>& values){if(values.empty())return J::object({{"samples",0}});auto sorted=values;std::sort(sorted.begin(),sorted.end());return J::object({{"samples",values.size()},{"mean_ms",std::accumulate(values.begin(),values.end(),0.)/values.size()},{"p50_ms",sorted[sorted.size()/2]},{"p95_ms",sorted[pf::min(sorted.size()-1,size_t(sorted.size()*.95))]},{"max_ms",sorted.back()}});}
 J App::metrics()const{return J::object({{"schema","pixelforge.native-metrics/v1"},{"startup_to_snapshot_ms",readyTime},{"paint",sampleSummary(paintSamples)},{"stroke_update",sampleSummary(strokeSamples)},{"paint_count",size_t(paintCount)},{"frame_switches",size_t(frameSwitches)},{"render_count",size_t(renderCount)},{"last_scene_render_ms",lastRenderMs},{"last_rpc_ms",rpc?rpc->lastMs:0},{"rpc_count",size_t(rpc?rpc->count:0)},{"poll_count",size_t(pollCount)},{"scene_cache_entries",renderCache.size()},{"render_thread",true},{"gpu",gpu?gpu->metrics():J::object()},{"rpc_thread",true},{"python_loaded_in_frontend",false},{"qt_loaded_in_frontend",false}});}
 J App::uiStatus()const{
+    int slot=canvasCursorSlot();std::string cursorName=panel!=0?"default":slot==GRABBING?"grabbing":slot==HAND?"grab":TOOLS[slot];
     J visibleOverlays=J::array();for(int i=0;i<3;++i)if(overlays[i])visibleOverlays.arr().push_back(std::array<const char*,3>{"base","collision","selection"}[i]);
-    J stateNames=J::array();if(scenePlayer)for(auto& s:state["scene_animation"]["states"].arr())stateNames.arr().push_back(J::object({{"id",s["id"]},{"label",s["label"]},{"duration_ms",s["duration_ms"]},{"loop",s["loop"]},{"next",s["next"]}}));
-    RECT r;GetClientRect(hwnd,&r);return J::object({{"application","PixForge"},{"version","4.2.3"},{"frontend","native-cpp"},{"platform","windows-x64"},{"loaded",loaded},{"pending",!canWrite()},{"document_id",state["document_id"]},{"revision",state["revision"]},{"content_digest",state["content_digest"]},{"runtime",pathText(runtime)},{"workspace",pathText(workspace)},{"panel",std::array<const char*,2>{"pixels","shapes"}[panel]},{"tool",TOOLS[tool]},{"canvas_cursor",panel==0?(panning?"grabbing":tool==7||(GetKeyState(VK_SPACE)&0x8000)?"grab":"default"):"default"},{"selection",selection.w?selection.json():J()},{"selection_coordinates","atlas pixels; bounded to active frame and layer"},{"color",hexColor(ink)},{"brush_size",std::to_string(brushSize)},{"opacity",J(brushOpacity).dump()},{"fill",solid},{"mirror_x",mirrorX},{"mirror_y",mirrorY},{"grid",grid},{"tile",tiled},{"onion",onion},{"uv",uvStatus()},{"background",panel==0?"checker":"studio"},{"zoom",zoom},{"pan",J::array({panX,panY})},{"step",step},{"frame",frame},{"playing",playing},{"time_ms",sceneClock()},{"scene_duration_ms",scenePlayer?J(sceneDuration()):state["scene_animation"]["duration_ms"]},{"scene_controller",scenePlayer?scenePlayer->summary():J()},{"scene_states",stateNames},{"scene_transform_tracks",sceneEntries(state["scene_animation"],"transforms").size()},{"scene_emitters",sceneEntries(state["scene_animation"],"emitters").size()},{"yaw",yaw},{"pitch",pitch},{"scene_zoom",sceneZoom},{"overlays",visibleOverlays},{"show_model",showModel},{"adjusting",adjusting()},{"inspector",inspectorVisible},{"timeline",showTransport()},{"inspector_tab",std::array<const char*,3>{"colors","navigation","uv"}[inspectorTab]},{"size",J::array({r.right,r.bottom})},{"dpi",dpi},{"message",utf8(message)},{"scene_ready",(gpu&&gpu->ready())||(rendered&&rendered->context==sceneContext)}});
+    J stateNames=J::array();if(studio())for(const auto& a:playerRig()["clips"].arr())stateNames.arr().push_back(J::object({{"id",a["name"]},{"label",a["name"]},{"duration_ms",a["duration_ms"]},{"loop",a["loop"].str()=="loop"}}));if(scenePlayer)for(auto& s:state["scene_animation"]["states"].arr())stateNames.arr().push_back(J::object({{"id",s["id"]},{"label",s["label"]},{"duration_ms",s["duration_ms"]},{"loop",s["loop"]},{"next",s["next"]}}));
+    RECT r;GetClientRect(hwnd,&r);return J::object({{"application","PixForge"},{"version","4.12.1"},{"frontend","native-cpp"},{"platform","windows-x64"},{"loaded",loaded},{"pending",!canWrite()},{"document_id",state["document_id"]},{"revision",state["revision"]},{"content_digest",state["content_digest"]},{"runtime",pathText(runtime)},{"workspace",pathText(workspace)},{"panel",startPage.visible?"start":panel?"shapes":"pixels"},{"start_task",startPage.visible?J(startPage.taskName()):J()},{"tool",TOOLS[tool]},{"canvas_cursor",cursorName},{"selection",selection.w?selection.json():J()},{"selection_coordinates","atlas pixels; bounded to active frame and layer"},{"color",hexColor(ink)},{"brush_size",std::to_string(brushSize)},{"brush_size_range",J::array({1,brushLimit()})},{"opacity",J(brushOpacity).dump()},{"fill",solid},{"mirror_x",mirrorX},{"mirror_y",mirrorY},{"grid",grid},{"tile",tiled},{"onion",onion},{"uv",uvStatus()},{"background",panel==0?"checker":"studio"},{"zoom",zoom},{"pan",J::array({panX,panY})},{"step",step},{"frame",frame},{"playing",playing},{"time_ms",sceneClock()},{"scene_duration_ms",(scenePlayer||studio())?J(sceneDuration()):state["scene_animation"]["duration_ms"]},{"scene_controller",scenePlayer?scenePlayer->summary():J()},{"scene_states",stateNames},{"scene_transform_tracks",sceneEntries(state["scene_animation"],"transforms").size()},{"scene_emitters",sceneEntries(state["scene_animation"],"emitters").size()},{"yaw",yaw},{"pitch",pitch},{"scene_zoom",sceneZoom},{"overlays",visibleOverlays},{"rig_selection",playerRig().isObject()?J::object({{"bone",rigBone},{"cube",rigCube}}):J()},{"hidden_skin_overlays",hiddenSkinOverlays()},{"show_model",showModel},{"adjusting",adjusting()},{"inspector",inspectorVisible},{"timeline",showTransport()},{"inspector_tab",std::array<const char*,3>{"colors","navigation","uv"}[inspectorTab]},{"size",J::array({r.right,r.bottom})},{"dpi",dpi},{"message",utf8(message)},{"rig_components",partStatus()},{"rig_clip",rigClip},{"rig_texture",rigTexture},{"rig_channel",rigChannel},{"rig_axis",std::string(1,"xyz"[rigAxis])},{"rig_key",rigKeyId},{"rig_curve",rigCurve},{"rig_cube_id",rigCubeId},{"scene_ready",(studio()?rigWanted==rigLoaded:(gpu&&gpu->ready()))||(rendered&&rendered->context==sceneContext)}});
 }
 J App::uiHelp()const{
-    return J::object({{"schema","pixelforge.native-ui/v1"},{"transport","private application channel; use workbench commands"},{"read_only_actions",J::array({"ui_status","ui_help","ui_metrics","ui_controls","ui_scene_sample","ui_scene_context"})},{"ui_set",J::object({{"panel",J::array({"pixels","shapes"})},{"tool",J::array({"hand","pen","eraser","fill","picker","line","rect","ellipse","select","move"})},{"color","#RRGGBBAA"},{"brush_size","integer 1..32"},{"opacity","number 1..100"},{"fill","boolean"},{"mirror_x","boolean"},{"mirror_y","boolean"},{"grid","boolean"},{"tile","boolean"},{"onion","boolean"},{"uv_guides","boolean"},{"uv_pixel","[atlas x,y]; pin all regions sampling this pixel"},{"uv_region","region id (R01...) to pin; null to clear pin"},{"zoom","number .01..64"},{"fit","boolean"},{"pan","[x,y] in logical screen pixels"},{"time_ms","scene clock; finite milliseconds 0..scene duration; view only"},{"scene_state","named state id; select a canonical state preview"},{"scene_event",J::array({"start","stop"})},{"scene_demo","boolean; preview the complete process"},{"scene_repeat","boolean; repeat process preview only"},{"step","zero-based texture playback step"},{"playing","boolean"},{"scene_zoom","number .1..8; 3D magnification; wheel up enlarges; independent of pixel canvas"},{"yaw","number -180..180"},{"pitch","number -89..90"},{"overlays","array of base/collision/selection"},{"show_model","boolean"},{"inspector","boolean"},{"timeline","boolean"},{"inspector_tab",J::array({"colors","navigation","uv"})},{"window_size","[width,height] client pixels; minimum 680x420"}})},{"ui_capture",J::object({{"path","absolute PNG path for this application's client-area discussion screenshot"},{"overwrite","boolean, default false"}})},{"ui_scene_editor",J::object({{"operation",J::array({"open","status","field","invoke","capture","cancel","apply"})},{"draft_only","field/invoke edit only the independent draft; apply validates observed document tokens and adds one undo step"},{"entry","workbench editor --editor-kind scene --operation open"}})},{"ui_minecraft_editor",J::object({{"operation",J::array({"open","status","field","invoke","capture","cancel","apply"})},{"entry","workbench editor --editor-kind target --operation open"},{"draft_only",true},{"approval_or_export",false}})},{"ui_minecraft_preview",J::object({{"operation",J::array({"open","status","configure","field","invoke","camera","capture","cancel"})},{"entry","workbench editor --editor-kind preview --operation open"},{"read_only",true}})},{"ui_minecraft_workbench",J::object({{"operation",J::array({"open","status","field","invoke","capture","cancel"})},{"entry","workbench editor --editor-kind regression --operation open"},{"draft_only","Inspection is read only; apply actions validate document tokens and add undo history. Never approves or exports."}})},{"ui_minecraft_material_editor",J::object({{"operation",J::array({"open","status","field","invoke","paint","capture","cancel"})},{"entry","workbench editor --editor-kind material --operation open"},{"pixel_semantics","raw 8-bit values; independent channels; alpha is data; mutations use shared undo"}})},{"document_operations","All document commands remain available with document_id/revision. UI commands never approve/export artwork."}});
+    return J::object({{"schema","pixelforge.native-ui/v1"},{"transport","private application channel; use workbench commands"},{"read_only_actions",J::array({"ui_status","ui_help","ui_metrics","ui_controls","ui_scene_sample","ui_scene_context"})},{"ui_set",J::object({{"panel",J::array({"pixels","shapes"})},{"tool",J::array({"hand","pen","eraser","fill","picker","line","rect","ellipse","select","move"})},{"color","#RRGGBBAA"},{"brush_size","integer 1..min(frame width, frame height), in pixels"},{"opacity","number 0..100, percent"},{"fill","boolean"},{"mirror_x","boolean"},{"mirror_y","boolean"},{"grid","boolean"},{"tile","boolean"},{"onion","boolean"},{"uv_guides","boolean"},{"uv_pixel","[atlas x,y]; pin all regions sampling this pixel"},{"uv_region","region id (R01...) to pin; null to clear pin"},{"zoom","number .01..64"},{"fit","boolean"},{"pan","[x,y] in logical screen pixels"},{"time_ms","scene clock; finite milliseconds 0..scene duration; view only"},{"scene_state","named state id; select a canonical state preview"},{"scene_event",J::array({"start","stop"})},{"scene_demo","boolean; preview the complete process"},{"scene_repeat","boolean; repeat process preview only"},{"step","zero-based texture playback step"},{"playing","boolean"},{"scene_zoom","number .1..8; 3D magnification; wheel up enlarges; independent of pixel canvas"},{"yaw","number -180..180"},{"pitch","number -89..90"},{"overlays","array of base/collision/selection"},{"rig_mode","pose / model"},{"rig_cubes","ordered array of cube UUIDs; last is active"},{"rig_transform","scale / rotate / pivot"},{"rig_transform_axis","x / y / z / all (uniform scale)"},{"rig_anchor","selection / individual"},{"rig_uv_editor","show UV beside the bind pose"},{"rig_face","north / south / east / west / up / down"},{"rig_link_faces","apply UV drag to same face of all selected cubes"},{"rig_channel","rotation / position / scale"},{"rig_axis","x / y / z"},{"rig_texture","texture name, UUID or null for face bindings"},{"rig_curve","show curve editor"},{"rig_bone","select bone by name (view only)"},{"rig_cube","select cube on current bone by name or UUID (view only)"},{"hidden_skin_overlays","hidden player clothing: hat, jacket, right_sleeve, left_sleeve, right_pants, left_pants; [] shows all"},{"show_model","boolean"},{"inspector","boolean"},{"timeline","boolean"},{"inspector_tab",J::array({"colors","navigation","uv"})},{"window_size","[width,height] client pixels; minimum 680x420"}})},{"ui_capture",J::object({{"path","absolute PNG path for this application's client-area discussion screenshot"},{"overwrite","boolean, default false"}})},{"ui_scene_editor",J::object({{"operation",J::array({"open","status","field","invoke","capture","cancel","apply"})},{"draft_only","field/invoke edit only the independent draft; apply validates observed document tokens and adds one undo step"},{"entry","workbench editor --editor-kind scene --operation open"}})},{"ui_minecraft_editor",J::object({{"operation",J::array({"open","status","field","invoke","capture","cancel","apply"})},{"entry","workbench editor --editor-kind target --operation open"},{"draft_only",true},{"approval_or_export",false}})},{"ui_minecraft_preview",J::object({{"operation",J::array({"open","status","configure","field","invoke","camera","capture","cancel"})},{"entry","workbench editor --editor-kind preview --operation open"},{"read_only",true}})},{"ui_minecraft_workbench",J::object({{"operation",J::array({"open","status","field","invoke","capture","cancel"})},{"entry","workbench editor --editor-kind regression --operation open"},{"draft_only","Inspection is read only; apply actions validate document tokens and add undo history. Never approves or exports."}})},{"ui_minecraft_material_editor",J::object({{"operation",J::array({"open","status","field","invoke","paint","capture","cancel"})},{"entry","workbench editor --editor-kind material --operation open"},{"pixel_semantics","raw 8-bit values; independent channels; alpha is data; mutations use shared undo"}})},{"document_operations","All document commands remain available with document_id/revision. UI commands never approve/export artwork."}});
 }
 J App::uiCommand(const J& request){
-    std::string action=request["action"].str("ui_status");if(action=="ui_minecraft_material_editor")return materialEditorCommand(*this,request);if(action=="ui_minecraft_workbench")return minecraftWorkbenchCommand(*this,request);if(action=="ui_minecraft_preview")return minecraftPreviewCommand(*this,request);if(action=="ui_scene_editor")return sceneEditorCommand(*this,request);if(action=="ui_minecraft_editor")return minecraftEditorCommand(*this,request);if(action=="ui_help")return uiHelp();if(action=="status"||action=="ui_status")return uiStatus();if(action=="focus"){ShowWindow(hwnd,SW_RESTORE);SetForegroundWindow(hwnd);return uiStatus();}if(action=="ui_scene_sample"){double moment=request.contains("time_ms")?request["time_ms"].number(-1):elapsed;if(moment<0||moment>120000)throw std::runtime_error("time_ms out of range");if(scenePlayer){if(request.contains("scene_state")){auto id=request["scene_state"].str();if(!scenePlayer->hasState(id))throw std::runtime_error("Unknown animation state");return nativeSceneSample(state["scene_animation"],state["shapes"]["model"],moment,J(),id);}if(request.contains("time_ms")){ScenePlayer copy=*scenePlayer;copy.seek(moment);return nativeSceneSample(state["scene_animation"],state["shapes"]["model"],moment,copy.view());}return nativeSceneSample(state["scene_animation"],state["shapes"]["model"],elapsed,scenePlayer->view());}return nativeSceneSample(state["scene_animation"],state["shapes"]["model"],moment);}if(action=="ui_scene_context")return scenePlayer?scenePlayer->view():J();if(action=="ui_metrics")return metrics();if(action=="ui_controls")return controls();if(action=="ui_close"){
+    std::string action=request["action"].str("ui_status");if(action=="ui_minecraft_material_editor")return materialEditorCommand(*this,request);if(action=="ui_minecraft_workbench")return minecraftWorkbenchCommand(*this,request);if(action=="ui_minecraft_preview")return minecraftPreviewCommand(*this,request);if(action=="ui_scene_editor")return sceneEditorCommand(*this,request);if(action=="ui_minecraft_editor")return minecraftEditorCommand(*this,request);if(action=="ui_help")return uiHelp();if(action=="status"||action=="ui_status")return uiStatus();if(action=="desktop_launch"){
+        if(request["path"].isString()){auto path=fs::path(wide(request["path"].str()));userAction([this,path]{openProject(path);});}
+        else if(!startPage.visible)userAction([this,resume=request["from_editor"].boolean()]{startPage.show(resume);});
+        return J::object({{"accepted",true}});
+    }if(action=="focus"){ShowWindow(hwnd,SW_RESTORE);SetForegroundWindow(hwnd);return uiStatus();}if(action=="ui_scene_sample"&&studio()){auto command=J::object({{"time_ms",request["time_ms"].number(rigTime)},{"scene_state",request["scene_state"].str(rigClip)}});return httpCall(runtime,payload("scene_sample",command))["sample"];}
+    if(action=="ui_scene_sample"){double moment=request.contains("time_ms")?request["time_ms"].number(-1):elapsed;if(moment<0||moment>120000)throw std::runtime_error("time_ms out of range");if(scenePlayer){if(request.contains("scene_state")){auto id=request["scene_state"].str();if(!scenePlayer->hasState(id))throw std::runtime_error("Unknown animation state");return nativeSceneSample(state["scene_animation"],state["shapes"]["model"],moment,J(),id);}if(request.contains("time_ms")){ScenePlayer copy=*scenePlayer;copy.seek(moment);return nativeSceneSample(state["scene_animation"],state["shapes"]["model"],moment,copy.view());}return nativeSceneSample(state["scene_animation"],state["shapes"]["model"],elapsed,scenePlayer->view());}return nativeSceneSample(state["scene_animation"],state["shapes"]["model"],moment);}if(action=="ui_scene_context"&&studio())return J::object({{"scene_state",rigClip},{"time_ms",rigTime},{"loop",rigLoop}});
+    if(action=="ui_scene_context")return scenePlayer?scenePlayer->view():J();if(action=="ui_metrics")return metrics();if(action=="ui_controls")return controls();if(action=="ui_close"){
         if(!IsWindowEnabled(hwnd))throw std::runtime_error("Close or cancel the active editor before closing the workbench");
         if(fetching)return J::object({{"error","Workbench is refreshing its snapshot"},{"code","VIEW_SYNC_PENDING"}});
         if(!loaded||!canWrite())throw std::runtime_error("Frontend busy; wait for synchronization");
@@ -202,27 +297,84 @@ J App::uiCommand(const J& request){
     auto enumIndex=[&](std::string name,std::initializer_list<std::string> values)->int{if(!options.contains(name))return -1;auto value=options[name].str();int i=0;for(auto& item:values){if(value==item)return i;++i;}throw std::runtime_error("Invalid "+name);};
     int nextPanel=enumIndex("panel",{"pixels","shapes"}),nextTool=enumIndex("tool",{"pen","eraser","fill","picker","line","rect","ellipse","hand","select","move"}),nextInspector=enumIndex("inspector_tab",{"colors","navigation","uv"});
     for(auto name:{"fill","mirror_x","mirror_y","grid","tile","onion","uv_guides","fit","playing","show_model","inspector","timeline","scene_demo","scene_repeat"})if(options.contains(name)&&!options[name].isBool())throw std::runtime_error(std::string(name)+" must be boolean");
-    for(auto [name,range]:{std::pair<const char*,std::pair<double,double>>{"brush_size",{1,32}},{"opacity",{1,100}},{"zoom",{.01,64}},{"scene_zoom",{.1,8}},{"yaw",{-180,180}},{"pitch",{-89,90}}})if(options.contains(name)){auto& value=options[name];if(!value.isNumber()||value.number()<range.first||value.number()>range.second||(std::string(name)=="brush_size"&&value.number()!=std::floor(value.number())))throw std::runtime_error(std::string("Invalid ")+name);}
-    double targetDuration=sceneDuration();if(options.contains("scene_state")||options.contains("scene_event")||options.contains("scene_demo")||options.contains("scene_repeat")){if(!scenePlayer)throw std::runtime_error("Current scene has no named states");if((options.contains("scene_state")&&options.contains("scene_event"))||((options.contains("scene_state")||options.contains("scene_event"))&&options.contains("scene_demo")))throw std::runtime_error("Choose a state, event or process preview in one update");std::string target=options.contains("scene_state")?options["scene_state"].str():options.contains("scene_event")?scenePlayer->route(options["scene_event"].str()):scenePlayer->state;if(!scenePlayer->hasState(target))throw std::runtime_error("Unknown state or unavailable event");if(options.contains("scene_demo")&&options["scene_demo"].boolean())targetDuration=state["scene_animation"]["duration_ms"].number();else if(options.contains("scene_state")||options.contains("scene_event")||options.contains("scene_demo"))for(auto& clip:state["scene_animation"]["states"].arr())if(clip["id"].str()==target)targetDuration=clip["duration_ms"].number();}
-    if(options.contains("time_ms")&&(!options["time_ms"].isNumber()||state["scene_animation"].null()||options["time_ms"].number()<0||options["time_ms"].number()>targetDuration))throw std::runtime_error("time_ms outside scene timeline");
+    for(auto [name,range]:{std::pair<const char*,std::pair<double,double>>{"brush_size",{1,double(brushLimit())}},{"opacity",{0,100}},{"zoom",{.01,64}},{"scene_zoom",{.1,8}},{"yaw",{-180,180}},{"pitch",{-89,90}}})if(options.contains(name)){auto& value=options[name];if(!value.isNumber()||value.number()<range.first||value.number()>range.second||(std::string(name)=="brush_size"&&value.number()!=std::floor(value.number())))throw std::runtime_error(std::string("Invalid ")+name);}
+    double targetDuration=sceneDuration();if(!studio()&&(options.contains("scene_state")||options.contains("scene_event")||options.contains("scene_demo")||options.contains("scene_repeat"))){if(!scenePlayer)throw std::runtime_error("Current scene has no named states");if((options.contains("scene_state")&&options.contains("scene_event"))||((options.contains("scene_state")||options.contains("scene_event"))&&options.contains("scene_demo")))throw std::runtime_error("Choose a state, event or process preview in one update");std::string target=options.contains("scene_state")?options["scene_state"].str():options.contains("scene_event")?scenePlayer->route(options["scene_event"].str()):scenePlayer->state;if(!scenePlayer->hasState(target))throw std::runtime_error("Unknown state or unavailable event");if(options.contains("scene_demo")&&options["scene_demo"].boolean())targetDuration=state["scene_animation"]["duration_ms"].number();else if(options.contains("scene_state")||options.contains("scene_event")||options.contains("scene_demo"))for(auto& clip:state["scene_animation"]["states"].arr())if(clip["id"].str()==target)targetDuration=clip["duration_ms"].number();}
+    if(studio()&&options.contains("scene_state")){
+        auto named=options["scene_state"].str();bool found=false;for(const auto& a:playerRig()["clips"].arr())if(a["name"].str()==named){targetDuration=pf::max(1.,a["duration_ms"].number());found=true;break;}
+        if(!found)throw std::runtime_error("找不到动作："+named);
+    }
+    if(options.contains("time_ms")&&(!options["time_ms"].isNumber()||(!studio()&&state["scene_animation"].null())||options["time_ms"].number()<0||options["time_ms"].number()>targetDuration))throw std::runtime_error("time_ms outside scene timeline");
     if(options.contains("time_ms")&&options.contains("step"))throw std::runtime_error("Choose time_ms or texture step in a single UI update");
     if(options.contains("step")&&(!options["step"].isNumber()||options["step"].number()!=std::floor(options["step"].number())||options["step"].integer()<0||options["step"].integer()>=int(state["animation"]["steps"].size())))throw std::runtime_error("Step out of range");
     Pixel nextColor=options.contains("color")?color(options["color"].str()):ink;for(auto name:{"pan","window_size"})if(options.contains(name)){auto a=options[name];if(!a.isArray()||a.size()!=2||!a[0].isNumber()||!a[1].isNumber()||std::abs(a[0].number())>100000||std::abs(a[1].number())>100000)throw std::runtime_error(std::string("Invalid ")+name);}if(options.contains("window_size")){auto a=options["window_size"];if(a[0].number()!=std::floor(a[0].number())||a[1].number()!=std::floor(a[1].number())||a[0].integer()<D(680)||a[1].integer()<D(420)||a[0].integer()>8192||a[1].integer()>8192)throw std::runtime_error("Unsupported window size");}
+    std::string nextBone=options["rig_bone"].str(rigBone),nextCube=options["rig_cube"].str(options.contains("rig_bone")?"":rigCube);
+    if(options.contains("rig_bone")||options.contains("rig_cube")){
+        bool found=false,foundCube=nextCube.empty();
+        const auto& bones=playerRig()["bones"];
+        if(bones.isArray())for(const auto& b:bones.arr())if(b["name"].str()==nextBone){
+            found=true;for(const auto& c:b["cubes"].arr())if(c["name"].str()==nextCube||c["uuid"].str()==nextCube)foundCube=true;
+        }
+        if(!found||!foundCube)throw std::runtime_error("未找到指定骨骼或其方块");
+    }
+    auto nextSkin=hiddenSkin;
+    if(options.contains("hidden_skin_overlays")){
+        const auto& hidden=options["hidden_skin_overlays"];nextSkin.fill(false);
+        if(!hidden.isArray()||(!hidden.empty()&&!playerSkin()))throw std::runtime_error("服装开关用于玩家皮肤；请传入服装名数组");
+        for(const auto& value:hidden.arr()){
+            auto it=std::find(SKIN_SWITCHES.begin(),SKIN_SWITCHES.end(),value.str());
+            if(it==SKIN_SWITCHES.end())throw std::runtime_error("未知玩家外层："+value.str());
+            nextSkin[size_t(it-SKIN_SWITCHES.begin())]=true;
+        }
+    }
     bool nextOverlays[3]={overlays[0],overlays[1],overlays[2]};if(options.contains("overlays")){if(!options["overlays"].isArray())throw std::runtime_error("Overlays must be an array");std::fill(std::begin(nextOverlays),std::end(nextOverlays),false);for(auto& v:options["overlays"].arr()){auto s=v.str();if(s=="base")nextOverlays[0]=true;else if(s=="collision")nextOverlays[1]=true;else if(s=="selection")nextOverlays[2]=true;else throw std::runtime_error("Unknown shape overlay");}}
     if(options.contains("uv_pixel")){auto target=options.contains("step")?rectJson(state["animation"]["rectangles"][state["animation"]["steps"][options["step"].integer()]["frame"].integer()]):currentRect();auto p=options["uv_pixel"];if(!p.isArray()||p.size()!=2||!p[0].isNumber()||!p[1].isNumber()||p[0].number()!=std::floor(p[0].number())||p[1].number()!=std::floor(p[1].number())||!target.contains(p[0].integer(),p[1].integer()))throw std::runtime_error("uv_pixel must be an atlas pixel within the current frame");}
     if(options.contains("uv_region")&&!options["uv_region"].null()){bool found=false;for(auto& g:modelUv["regions"].arr())if(g["id"]==options["uv_region"])found=true;if(!found)throw std::runtime_error("Unknown UV region");}
     if(scenePlayer){if(options.contains("scene_state"))scenePlayer->select(options["scene_state"].str());if(options.contains("scene_event")){scenePlayer->event(options["scene_event"].str());playing=true;}if(options.contains("scene_demo")){if(options["scene_demo"].boolean()){scenePlayer->beginSequence();playing=true;}else scenePlayer->sequenceMode=false;}if(options.contains("scene_repeat"))scenePlayer->repeat=options["scene_repeat"].boolean();elapsed=scenePlayer->clock();programTextureStep();playStart=milliseconds();}
-    if(nextPanel>=0)panel=nextPanel;if(nextTool>=0){tool=nextTool;if(tool==HAND)clearSelection();if(nextPanel<0)panel=0;}if(nextInspector>=0)inspectorTab=nextInspector;if(ink!=nextColor)setColor(nextColor);
-    auto boolean=[&](const char* name,bool& field){if(options.contains(name))field=options[name].boolean();};boolean("fill",solid);boolean("mirror_x",mirrorX);boolean("mirror_y",mirrorY);boolean("grid",grid);boolean("tile",tiled);boolean("onion",onion);boolean("uv_guides",uvGuides);boolean("show_model",showModel);boolean("inspector",inspectorVisible);boolean("timeline",timelineVisible);for(int i=0;i<3;++i)overlays[i]=nextOverlays[i];if(options.contains("brush_size")){brushSize=options["brush_size"].integer();if(comboIndex(sizeCombo)!=brushSize-1)comboSet(sizeCombo,brushSize-1);}if(options.contains("opacity")){brushOpacity=options["opacity"].number();int index=rounded(brushOpacity)-1;if(comboIndex(opacityCombo)!=index)comboSet(opacityCombo,index);}if(options.contains("scene_zoom"))sceneZoom=options["scene_zoom"].number();if(options.contains("yaw"))yaw=options["yaw"].number();if(options.contains("pitch"))pitch=options["pitch"].number();if(options.contains("step"))seek(options["step"].integer());if(options.contains("time_ms"))seekTime(options["time_ms"].number());if(options.contains("playing")){playing=options["playing"].boolean();playStart=milliseconds();if(state["scene_animation"].null()){elapsed=0;for(int i=0;i<step;++i)elapsed+=state["animation"]["steps"][i]["duration_ms"].number();}}
+    if(studio()){
+        if(options.contains("scene_state")&&rigClip!=options["scene_state"].str())changeRigClip(options["scene_state"].str());
+        if(options.contains("rig_texture")){rigTexture=-1;int i=0;for(const auto& t:playerRig()["textures"].arr()){if(t["uuid"]==options["rig_texture"]||t["name"]==options["rig_texture"])rigTexture=i;++i;}
+            if(!options["rig_texture"].null()&&rigTexture<0)throw std::runtime_error("找不到所选贴图");comboSet(rigTextureCombo,rigTexture+1);}
+        if(options.contains("rig_axis")){auto it=std::string("xyz").find(options["rig_axis"].str());if(it>2)throw std::runtime_error("选择 x、y 或 z");rigAxis=int(it);comboSet(rigAxisCombo,rigAxis);}
+        if(options.contains("rig_channel")){int idx=enumIndex("rig_channel",{"rotation","position","scale"});rigChannel=options["rig_channel"].str();comboSet(rigChannelCombo,idx);}
+        if(options.contains("rig_curve"))rigCurve=options["rig_curve"].boolean();
+    }
+    if(options.contains("rig_bone")||options.contains("rig_cube")){rigBone=nextBone;rigCube=nextCube;rigCubeId=nextCube;rigPicked=true;refreshRigTree();rigFocusedKey();}
+    if(studio()){
+        if(options.contains("rig_mode"))changePartMode(enumIndex("rig_mode",{"pose","model"})==1);
+        if(options.contains("rig_cubes")){
+            const auto& ids=options["rig_cubes"];if(!ids.isArray())throw std::runtime_error("rig_cubes 使用方块 UUID 数组");
+            for(const auto& id:ids.arr())if(!partCube(id.str()).isObject())throw std::runtime_error("找不到方块："+id.str());
+            changePartMode(true);chooseParts(ids);
+        }
+        if(options.contains("rig_transform")){partTool=enumIndex("rig_transform",{"scale","rotate","pivot"});setPartAxis();}
+        if(options.contains("rig_transform_axis")){partAxis=enumIndex("rig_transform_axis",{"x","y","z","all"});setPartAxis();}
+        if(options.contains("rig_anchor"))partAnchor=enumIndex("rig_anchor",{"selection","individual"});
+        if(options.contains("rig_uv_editor"))toggleFaces(options["rig_uv_editor"].boolean());
+        if(options.contains("rig_face")){int fi=enumIndex("rig_face",{"north","south","east","west","up","down"});activeFace=sourceSides[fi];uvFocus.clear();}
+        if(options.contains("rig_link_faces"))linkFaces=options["rig_link_faces"].boolean();
+    }
+    hiddenSkin=nextSkin;
+    if(nextPanel>=0){panel=nextPanel;if(startPage.visible)startPage.hide();}if(nextTool>=0){tool=nextTool;if(tool==HAND)clearSelection();if(nextPanel<0)panel=0;}if(nextInspector>=0)inspectorTab=nextInspector;if(ink!=nextColor)setColor(nextColor);
+    auto boolean=[&](const char* name,bool& field){if(options.contains(name))field=options[name].boolean();};boolean("fill",solid);boolean("mirror_x",mirrorX);boolean("mirror_y",mirrorY);boolean("grid",grid);boolean("tile",tiled);boolean("onion",onion);boolean("uv_guides",uvGuides);boolean("show_model",showModel);boolean("inspector",inspectorVisible);boolean("timeline",timelineVisible);for(int i=0;i<3;++i)overlays[i]=nextOverlays[i];if(options.contains("brush_size")){brushSize=options["brush_size"].integer();numberField::set(sizeField,brushSize);}if(options.contains("opacity")){brushOpacity=options["opacity"].number();numberField::set(opacityField,brushOpacity);}if(options.contains("scene_zoom"))sceneZoom=options["scene_zoom"].number();if(options.contains("yaw"))yaw=options["yaw"].number();if(options.contains("pitch"))pitch=options["pitch"].number();if(options.contains("step"))seek(options["step"].integer());if(options.contains("time_ms"))seekTime(options["time_ms"].number());if(options.contains("playing")){playing=options["playing"].boolean()&&!(studio()&&partMode);playStart=milliseconds();if(!studio()&&state["scene_animation"].null()){elapsed=0;for(int i=0;i<step;++i)elapsed+=state["animation"]["steps"][i]["duration_ms"].number();}}
     if(options.contains("window_size")){auto a=options["window_size"];RECT r{0,0,a[0].integer(),a[1].integer()};AdjustWindowRectExForDpi(&r,DWORD(GetWindowLongPtrW(hwnd,GWL_STYLE)),FALSE,0,dpi);SetWindowPos(hwnd,nullptr,0,0,r.right-r.left,r.bottom-r.top,SWP_NOMOVE|SWP_NOZORDER);}
     if(options.contains("uv_region")){clearUvPin();if(!options["uv_region"].null()){uvGuides=uvPinned=true;uvRegion=options["uv_region"].str();for(int i=0;i<int(modelUv["regions"].size());++i)if(modelUv["regions"][i]["id"].str()==uvRegion)uvHits={i};}}
     if(options.contains("uv_pixel")){uvGuides=true;clearUvPin();inspectUvPixel(options["uv_pixel"][0].integer(),options["uv_pixel"][1].integer(),true);}
     syncStateControls();layout();syncPlayback();if(options.contains("zoom"))setZoom(options["zoom"].number());if(options.contains("pan")){pixelAutoFit=false;panX=options["pan"][0].number();panY=options["pan"][1].number();}if(options["fit"].boolean())fit();frameDirty=true;canvasView->redraw();details->redraw();requestRender();updateCanvasCursor();return uiStatus();
 }
-void App::capture(const fs::path& path,bool overwrite){if(IsIconic(hwnd)){ShowWindow(hwnd,SW_RESTORE);UpdateWindow(hwnd);}auto ext=path.extension().wstring();std::transform(ext.begin(),ext.end(),ext.begin(),::towlower);if(ext!=L".png")throw std::runtime_error("Discussion capture requires .png");if(fs::exists(path)&&!overwrite)throw std::runtime_error("Capture already exists; choose a new path or explicit overwrite");auto absolute=fs::weakly_canonical(path);for(auto key:{"project_path","source_path"})if(state[key].isString()&&absolute==fs::weakly_canonical(fs::path(wide(state[key].str()))))throw std::runtime_error("Capture cannot overwrite an artwork source");RECT r;GetClientRect(hwnd,&r);HDC dc=GetDC(hwnd),mem=CreateCompatibleDC(dc);BITMAPINFO info{};info.bmiHeader.biSize=sizeof(BITMAPINFOHEADER);info.bmiHeader.biWidth=r.right;info.bmiHeader.biHeight=-r.bottom;info.bmiHeader.biPlanes=1;info.bmiHeader.biBitCount=32;info.bmiHeader.biCompression=BI_RGB;void* bits=nullptr;HBITMAP bitmap=CreateDIBSection(dc,&info,DIB_RGB_COLORS,&bits,nullptr,0);if(!bitmap){DeleteDC(mem);ReleaseDC(hwnd,dc);throw std::runtime_error("Capture bitmap allocation failed");}auto old=SelectObject(mem,bitmap);BOOL result=PrintWindow(hwnd,mem,PW_CLIENTONLY);Image image(r.right,r.bottom);auto raw=static_cast<uint8_t*>(bits);for(size_t i=0;i<image.bytes.size();i+=4){image.bytes[i]=raw[i+2];image.bytes[i+1]=raw[i+1];image.bytes[i+2]=raw[i];image.bytes[i+3]=255;}SelectObject(mem,old);DeleteObject(bitmap);DeleteDC(mem);ReleaseDC(hwnd,dc);if(!result||!savePng(image,path))throw std::runtime_error("Own-window capture failed");}
+void App::capture(const fs::path& path,bool overwrite){if(IsIconic(hwnd)){ShowWindow(hwnd,SW_RESTORE);UpdateWindow(hwnd);}auto ext=path.extension().wstring();std::transform(ext.begin(),ext.end(),ext.begin(),::towlower);if(ext!=L".png")throw std::runtime_error("Discussion capture requires .png");if(fs::exists(path)&&!overwrite)throw std::runtime_error("Capture already exists; choose a new path or explicit overwrite");
+    checkCaptureSource(path,state);
+    captureWindowPng(hwnd,path);
+}
 bool App::key(MSG& msg){
-    if(msg.wParam==VK_SPACE&&(msg.message==WM_KEYDOWN||msg.message==WM_KEYUP)&&GetFocus()==canvasView->hwnd)updateCanvasCursor();
-    if(msg.message!=WM_KEYDOWN&&msg.message!=WM_SYSKEYDOWN)return false;bool ctrl=(GetKeyState(VK_CONTROL)&0x8000)!=0,shift=(GetKeyState(VK_SHIFT)&0x8000)!=0,alt=(GetKeyState(VK_MENU)&0x8000)!=0;HWND focus=GetFocus();std::wstring cls=Form::className(focus);bool typing=cls==L"Edit"||cls==L"ComboBox"||cls==L"ComboLBox";if(msg.wParam==VK_TAB||(cls==L"Button"&&(msg.wParam==VK_SPACE||msg.wParam==VK_RETURN)))keyboardFocusMode(hwnd,true);
+    if(startPage.visible)return startPage.key(msg);
+    if((msg.wParam==VK_SPACE||msg.wParam==VK_MENU)&&
+       (msg.message==WM_KEYDOWN||msg.message==WM_KEYUP||msg.message==WM_SYSKEYDOWN||msg.message==WM_SYSKEYUP)){
+        updateCanvasCursor();
+        // Alt belongs to the eyedropper on the canvas; don't enter the system menu on release.
+        if(msg.wParam==VK_MENU&&panel==0&&GetFocus()==canvasView->hwnd)return true;
+    }
+    if(msg.message!=WM_KEYDOWN&&msg.message!=WM_SYSKEYDOWN)return false;bool ctrl=(GetKeyState(VK_CONTROL)&0x8000)!=0,shift=(GetKeyState(VK_SHIFT)&0x8000)!=0,alt=(GetKeyState(VK_MENU)&0x8000)!=0;HWND focus=GetFocus();std::wstring cls=Form::className(focus);bool typing=cls==L"Edit"||cls==L"ComboBox"||cls==L"ComboLBox";if((GetParent(focus)==sizeField||GetParent(focus)==opacityField)&&ctrl)return false;
+    if(msg.wParam==VK_TAB||(cls==L"Button"&&(msg.wParam==VK_SPACE||msg.wParam==VK_RETURN)))keyboardFocusMode(hwnd,true);
     if(msg.wParam==VK_ESCAPE&&(dragging||strokePending)){endStroke(true);movingSelection=false;ReleaseCapture();return true;}
     if(ctrl){
         if(!typing&&adjusting()&&(tool==8||tool==9)){
@@ -230,6 +382,7 @@ bool App::key(MSG& msg){
             if(!action.empty()){selectionAction(action);return true;}
         }
         switch(msg.wParam){
+            case 'N':if(!typing)userAction([this]{startPage.show(true);});return !typing;
             case 'O':openProject();return true;case 'S':saveProject(shift);return true;case 'Q':close();return true;case 'E':exportPng();return true;
             case 'Z':case 'Y':if(!typing){mutate(msg.wParam=='Y'||shift?"redo":"undo");return true;}break;
             case '0':fit();return true;case '1':if(panel==0){panX=panY=0;setZoom(1);}else fit();return true;
@@ -253,7 +406,7 @@ LRESULT App::procedure(UINT msg,WPARAM wp,LPARAM lp){
     switch(msg){
     case WM_SIZE:if(statusBar&&wp!=SIZE_MINIMIZED)layout();return 0;
     case WM_GETMINMAXINFO:{auto info=reinterpret_cast<MINMAXINFO*>(lp);info->ptMinTrackSize={D(696),D(460)};return 0;}
-    case WM_DPICHANGED:{placements.clear();dpi=HIWORD(wp);updateWindowIcons(hwnd);updateFont();if(loaded)syncLayers();auto r=reinterpret_cast<RECT*>(lp);SetWindowPos(hwnd,nullptr,r->left,r->top,r->right-r->left,r->bottom-r->top,SWP_NOZORDER|SWP_NOACTIVATE);layout();return 0;}
+    case WM_DPICHANGED:{placements.clear();dpi=HIWORD(wp);updateWindowIcons(hwnd);updateFont();if(loaded)syncLayers();auto r=reinterpret_cast<RECT*>(lp);SetWindowPos(hwnd,nullptr,r->left,r->top,r->right-r->left,r->bottom-r->top,SWP_NOZORDER|SWP_NOACTIVATE);layout();updateCanvasCursor();return 0;}
     case WM_ERASEBKGND:return 1; // paintChrome presents the background and captions together.
     case WM_PAINT:{PAINTSTRUCT ps;HDC dc=BeginPaint(hwnd,&ps);paintChrome(dc,ps.rcPaint);EndPaint(hwnd,&ps);return 0;}
     case WM_PRINTCLIENT:{RECT r;GetClientRect(hwnd,&r);paintChrome(HDC(wp),r);return 0;}

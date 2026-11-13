@@ -1,10 +1,8 @@
 """Minecraft 1.20.1 atlas timing, authored independently of machine instance clocks."""
 from copy import deepcopy
-import base64
-import io
 import math
-from PIL import Image, ImageDraw
 from .document import StudioError, playback
+from .image_bytes import png_base64
 
 CAPABILITY = "minecraft-animation/v1"
 
@@ -130,9 +128,8 @@ def inspect(document, metadata=None, time_ms=0):
     else: plan, options = metadata_plan(metadata, (document.canvas.w, document.canvas.h))
     output = to_metadata(plan, options["interpolate"])
     image, position = sample(document.canvas.composite(), plan, time_ms, **options)
-    stream = io.BytesIO(); image.save(stream, format="PNG")
     return {"schema": "pixforge.minecraft-animation/v1", "plan": plan, "metadata": output,
             "texture_animation": options, "sample": position, "period_ticks": sum(s["time"] for s in output["animation"]["frames"]),
-            "image_base64": base64.b64encode(stream.getvalue()).decode("ascii"),
+            "image_base64": png_base64(image),
             "clock": "shared atlas; machine activation requires per-BlockEntity instance player",
             "alpha_rule": "interpolate RGB at whole game ticks; preserve current frame alpha"}

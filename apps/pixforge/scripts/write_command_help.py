@@ -18,6 +18,7 @@ def entry(value):
 
 
 def write(path):
+    application = json.loads((Path(__file__).resolve().parents[1] / 'public-api.json').read_bytes())
     commands = build_commands(None)
     groups = {}
     for group, actions in CATALOG.items():
@@ -29,7 +30,7 @@ def write(path):
                     'description': commands['describe'](name), 'params_schema': commands['models'][name].model_json_schema()}
             groups[group]['actions'][action] = entry(data)
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps({'schema': 'pixforge.command-help/v4', 'overview': entry(root_help()), 'groups': groups},
+    path.write_text(json.dumps({'schema': 'pixforge.command-help/v4', 'overview': entry(root_help(application)), 'groups': groups},
                               ensure_ascii=False, separators=(',', ':')) + '\n', encoding='utf-8', newline='\n')
 
 

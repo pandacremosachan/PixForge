@@ -1,12 +1,24 @@
 #include "app.hpp"
+#include <charconv>
 
 namespace pf {
 namespace {
 const COLORREF chrome=RGB(35,38,46), surfaceColor=RGB(44,48,58), border=RGB(60,65,77);
 const COLORREF foreground=RGB(234,236,243), muted=RGB(166,173,188), accent=RGB(174,166,248);
+std::wstring dimensions(int w,int h){return std::to_wstring(w)+L" × "+std::to_wstring(h)+L" px";}
+int pixelDimension(const std::string& field){
+    auto start=field.find_first_not_of(" \t"),end=field.find_last_not_of(" \t");
+    if(start!=std::string::npos){
+        int value=0;auto last=field.data()+end+1;
+        auto parsed=std::from_chars(field.data()+start,last,value);
+        if(parsed.ec==std::errc{}&&parsed.ptr==last&&value>=1&&value<=4096)return value;
+    }
+    throw std::runtime_error("宽和高须为 1 到 4096 之间的整数");
+}
 std::wstring filename(const J& state) {
     auto path=state["project_path"].str(state["source_path"].str());
-    return path.empty()?L"未命名材质":fs::path(wide(path)).filename().wstring();
+    if(!path.empty())return fs::path(wide(path)).filename().wstring();
+    return state["shapes"]["model"]["player_rig"].isObject()?L"未命名模型":L"未命名贴图";
 }
 }
 
@@ -17,7 +29,7 @@ void App::create(){
         if(state["dirty"].boolean())name+=L"  •";
         text(dc,name,r,foreground,DT_LEFT|DT_VCENTER|DT_SINGLELINE|DT_END_ELLIPSIS|DT_NOPREFIX);
     });
-    button(hwnd,"file",L"文件 ▾",[this]{fileMenu();});
+    button(hwnd,"file",L"文件",[this]{fileMenu();});
     button(hwnd,"pixels",L"材质",[this]{switchPanel(0);},[this]{return panel==0;});
     button(hwnd,"shapes",L"模型",[this]{switchPanel(1);},[this]{return panel==1;});
     button(hwnd,"fit",L"适应",[this]{fit();});
@@ -28,6 +40,7 @@ void App::create(){
     canvasView->event=[this](UINT m,WPARAM w,LPARAM l){return canvasEvent(m,w,l);};
     sceneView=surface(hwnd,16,[this](HDC dc,RECT r){paintScene(dc,r);});
     sceneView->event=[this](UINT m,WPARAM w,LPARAM l)->LRESULT{
+        if(studio())return studioEvent(m,w,l);
         int x=GET_X_LPARAM(l),y=GET_Y_LPARAM(l);
         if(m==WM_LBUTTONDOWN){SetFocus(sceneView->hwnd);lastMouseX=x;lastMouseY=y;panning=true;SetCapture(sceneView->hwnd);return 0;}
         if(m==WM_MOUSEMOVE&&panning){
@@ -40,7 +53,7 @@ void App::create(){
         return UNHANDLED;
     };
     gpu=std::make_unique<GpuScene>(sceneView->hwnd);
-    if(gpu->available)sceneView->directPaint=[this]{RECT r;GetClientRect(sceneView->hwnd,&r);return gpu&&gpu->draw(r.right,r.bottom);};
+    if(gpu->available)sceneView->directPaint=[this]{RECT r;GetClientRect(sceneView->hwnd,&r);return !studio()&&gpu&&gpu->draw(r.right,r.bottom);};
 
     createPanels();
     button(hwnd,"undo",L"撤销",[this]{mutate("undo");});button(hwnd,"redo",L"重做",[this]{mutate("redo");});
@@ -62,7 +75,7 @@ void App::create(){
             RECT r;GetClientRect(timeline->hwnd,&r);
             double fraction=pf::clamp((GET_X_LPARAM(l)-D(10))/double(pf::max(1,r.right-D(110))),0.,1.);
             if(m==WM_LBUTTONDOWN){sceneScrubbing=true;SetCapture(timeline->hwnd);}
-            if(state["scene_animation"].null())seek(rounded(fraction*(state["animation"]["steps"].size()-1)));
+            if(!studio()&&state["scene_animation"].null())seek(rounded(fraction*(state["animation"]["steps"].size()-1)));
             else seekTime(fraction*sceneDuration());
             return 0;
         }
@@ -74,6 +87,8 @@ void App::create(){
     button(hwnd,"next",L"下一帧",[this]{seek(step+1);});
     sceneStateCombo=combo(hwnd,"state_select",{});
     statusBar=surface(hwnd,23,[this](HDC dc,RECT r){paintStatus(dc,r);});
+    button(hwnd,"canvas_size",L"画布尺寸",[this]{canvasSizeMenu();});
+    startPage.create(*this);
     tooltips();
 }
 
@@ -82,12 +97,13 @@ void App::placeControl(HWND control,int x,int y,int w,int h,bool visible){
 }
 
 void App::layout(){
+    if(startPage.visible){startPage.layout();return;}
     RECT client;GetClientRect(hwnd,&client);int w=client.right,h=client.bottom;
     bool pixels=panel==0,model=panel==1,hasUv=!modelUv["regions"].empty(),frames=state["animation"]["steps"].size()>1;
     bool tabs=model||!state["shapes"]["model"].null(),side=inspectorVisible,colors=pixels&&side&&inspectorTab==0;
     const int head=D(46),top=head+(pixels?D(39):0),footer=D(27),bottom=h-footer-(showTransport()?D(40):0),body=bottom-top;
     bool shortPanel=body<D(415);
-    int rail=pixels?(w<D(860)?D(128):D(150)):0;
+    int rail=pixels?(w<D(860)?D(144):D(160)):0;
     int right=side?pf::clamp(w/5,D(188),D(278)):0,rx=w-right,gap=D(5);
     std::vector<Caption> nextCaptions;
     auto label=[&](std::wstring title,int x,int y,int width,int height,bool strong=false){nextCaptions.push_back({{x,y,x+width,y+height},std::move(title),strong});};
@@ -117,15 +133,19 @@ void App::layout(){
     for(auto pair:{std::pair<int,int>{7,0},{1,3},{2,4},{5,6},{8,9}}){
         row({"tool_"+TOOLS[pair.first],"tool_"+TOOLS[pair.second]},ix,y,iw,toolH,pixels);y+=toolH+D(3);
     }
-    y+=shortPanel?D(3):D(14);int fieldH=shortPanel?D(23):D(30),fieldX=ix+D(49);
-    if(pixels)label(L"笔宽",ix,y,D(48),fieldH);placeControl(sizeCombo,fieldX,y,rail-ix-fieldX,D(180),pixels);y+=fieldH+D(2);
-    if(pixels)label(L"不透明度",ix,y,D(52),fieldH);placeControl(opacityCombo,fieldX+D(5),y,rail-ix-fieldX-D(5),D(180),pixels);y+=fieldH+D(3);
+    y+=shortPanel?D(3):D(14);int fieldH=shortPanel?D(24):D(30),fieldX=ix+D(53);
+    if(pixels)label(L"笔宽",ix,y,D(51),fieldH);placeControl(sizeField,fieldX,y,rail-ix-fieldX,fieldH,pixels);y+=fieldH+D(3);
+    if(pixels)label(L"不透明度",ix,y,D(51),fieldH);placeControl(opacityField,fieldX,y,rail-ix-fieldX,fieldH,pixels);y+=fieldH+D(3);
     int optionH=shortPanel?D(23):D(29);
     row({"mirror_x","mirror_y"},ix,y,iw,optionH,pixels);y+=optionH+D(3);
     box("solid",ix,y,iw,optionH,pixels);
 
     placeControl(canvasView->hwnd,rail,top,w-rail-right,body,pixels);
-    placeControl(sceneView->hwnd,0,top,w-right,body,model);
+    bool editParts=model&&studio()&&partMode;int centerW=w-right;int uvW=editParts&&facePanel?pf::clamp(centerW*39/100,D(198),D(405)):0;
+    placeControl(faceView->hwnd,centerW-uvW,top,uvW,body,uvW>0);
+    int graphH=model&&studio()&&!editParts&&rigCurve&&showTransport()?pf::clamp(body/4,D(112),D(182)):0;
+    placeControl(sceneView->hwnd,0,top,centerW-uvW,body-graphH,model);
+    placeControl(rigGraph->hwnd,0,top+body-graphH,w-right,graphH,graphH>0);
 
     int sx=rx+D(12),sw=right-D(24);y=top+D(6);
     row(hasUv?std::vector<std::string>{"inspect_colors","inspect_navigation","inspect_uv"}:std::vector<std::string>{"inspect_colors","inspect_navigation"},
@@ -147,8 +167,44 @@ void App::layout(){
 
     // The model has its own permanent display and camera controls.
     bool show=model&&side;int lineH=shortPanel?D(24):D(31);y=top+(shortPanel?D(5):D(12));
-    if(show)label(L"模型显示",sx,y,sw,D(23),true);y+=D(25);
-    for(auto key:{"show_model","base","collision","selection"}){box(key,sx,y,sw,lineH,show);y+=lineH+D(1);}
+    bool skin=playerSkin();
+    bool rigModel=playerRig().isObject(),rigSide=show&&rigModel;
+    const auto& shapes=state["shapes"];
+    bool rigShapes=rigModel&&(!shapes["base"].empty()||!shapes["collision"].null()||!shapes["selection"].null());
+    bool display=show&&!skin&&(!rigModel||rigShapes);
+    auto rigTitle=editParts?L"部件  /  已选 "+std::to_wstring(partIndices.size()):std::wstring(L"骨骼与方块");
+    if(show)label(display?L"模型显示":rigModel?rigTitle:std::wstring(L"皮肤外层"),sx,y,sw,D(23),true);y+=D(25);
+    int modelTop=y;
+    if(display&&rigModel){
+        row({"show_model","base"},sx,y,sw,lineH,true);y+=lineH+D(1);
+        row({"collision","selection"},sx,y,sw,lineH,true);y+=lineH+D(4);
+        label(rigTitle,sx,y,sw,D(23),true);y+=D(25);
+    }else{
+        for(auto key:{"show_model","base","collision","selection"}){
+            box(key,sx,y,sw,lineH,display);if(display)y+=lineH+D(1);
+        }
+    }
+    int rigTop=y;
+    int yy=modelTop;
+    for(size_t i=0;i<SKIN_SWITCHES.size();i+=2){
+        row({"skin_"+std::string(SKIN_SWITCHES[i]),"skin_"+std::string(SKIN_SWITCHES[i+1])},sx,yy,sw,lineH,show&&skin);
+        yy+=lineH+D(2);
+    }
+    if(skin)y=yy;
+    yy=rigTop;row({"part_mode","part_uv"},sx,yy,sw,lineH,rigSide&&studio());if(rigSide&&studio())yy+=lineH+D(4);
+    placeControl(rigBoneCombo,sx,yy,sw,D(240),rigSide);yy+=lineH+D(3);
+    row({"rig_add_bone","rig_edit_bone"},sx,yy,sw,lineH,rigSide&&!editParts);if(!editParts)yy+=lineH+D(5);
+    placeControl(rigCubeCombo,sx,yy,sw,D(180),rigSide);yy+=lineH+D(3);
+    row({"rig_add_cube","rig_edit_cube"},sx,yy,sw,lineH,rigSide);yy+=lineH+D(3);
+    row({"rig_key","rig_more"},sx,yy,sw,lineH,rigSide&&!editParts);if(!editParts)yy+=lineH+D(3);
+    bool pro=rigSide&&studio();int p=yy;
+    placeControl(rigTextureCombo,sx,p,sw,D(190),pro);p+=lineH+D(2);
+    placeControl(rigChannelCombo,sx,p,(sw-gap)*2/3,D(130),pro&&!editParts);placeControl(rigAxisCombo,sx+(sw-gap)*2/3+gap,p,(sw-gap)/3,D(128),pro&&!editParts);if(!editParts)p+=lineH+D(2);
+    placeControl(rigStyleCombo,sx,p,sw,D(150),pro&&!editParts);if(!editParts)p+=lineH+D(2);
+    row({"rig_insert","rig_graph_toggle"},sx,p,sw,lineH,pro&&!editParts);if(!editParts)p+=lineH+D(2);
+    bool batch=pro&&editParts;placeControl(partToolCombo,sx,p,(sw-gap)*2/3,D(145),batch);placeControl(partAxisCombo,sx+(sw-gap)*2/3+gap,p,(sw-gap)/3,D(155),batch);
+    if(batch)p+=lineH+D(4);row({"part_anchor","part_numbers"},sx,p,sw,lineH,batch);if(batch)p+=lineH+D(4);
+    if(rigModel)y=pro?p:yy;
     y+=shortPanel?D(3):D(14);if(show)label(L"视角",sx,y,sw,D(23),true);y+=D(24);
     row({"camera_iso","camera_front","camera_back"},sx,y,sw,lineH,show);y+=lineH+D(4);
     row({"camera_left","camera_right","camera_top"},sx,y,sw,lineH,show);y+=lineH+D(6);
@@ -161,14 +217,21 @@ void App::layout(){
     EnableWindow(handles.at("solid"),tool==5||tool==6);
     bool widthTool=tool==0||tool==1||tool==4||tool==5||tool==6;
     auto enable=[](HWND control,bool value){if((IsWindowEnabled(control)!=FALSE)!=value)EnableWindow(control,value);};
-    enable(sizeCombo,widthTool||tool==HAND);enable(opacityCombo,tool!=3&&tool!=8&&tool!=9);
+    enable(sizeField,widthTool||tool==HAND);enable(opacityField,tool!=3&&tool!=8&&tool!=9);
 
     int transportY=bottom+D(6);x=D(12);
     tab("play",x,transportY,58,showTransport());x+=D(65);
     tab("previous",x,transportY,55,showTransport()&&frames);tab("next",x+D(58),transportY,55,showTransport()&&frames);if(frames)x+=D(120);
-    placeControl(sceneStateCombo,x,transportY,D(134),D(200),showTransport()&&scenePlayer!=nullptr);if(scenePlayer)x+=D(142);
+    placeControl(sceneStateCombo,x,transportY,D(134),D(200),showTransport()&&(scenePlayer!=nullptr||studio()));if(scenePlayer||studio())x+=D(142);
     placeControl(timeline->hwnd,x,bottom,w-x-D(12),D(40),showTransport());
-    placeControl(statusBar->hwnd,0,h-footer,w,footer);
+    int sizeWidth=loaded?D(140):0;
+    box("canvas_size",0,h-footer,sizeWidth,footer,loaded);
+    placeControl(statusBar->hwnd,sizeWidth,h-footer,w-sizeWidth,footer);
+    if(loaded){
+        auto& b=buttons.at(GetDlgCtrlID(handles.at("canvas_size")));auto f=currentRect();
+        auto sizeText=dimensions(f.w,f.h);
+        if(b.title!=sizeText){b.title=sizeText;SetWindowTextW(b.hwnd,sizeText.c_str());InvalidateRect(b.hwnd,nullptr,FALSE);}
+    }
     if(loaded&&pixels&&pixelAutoFit)fit();
     if(nextCaptions!=captions){captions=std::move(nextCaptions);InvalidateRect(hwnd,nullptr,FALSE);}
     if(model)syncCamera();else syncButtons();
@@ -204,21 +267,20 @@ void App::chooseInk(){
 void App::paintStatus(HDC dc,RECT r){
     fill(dc,r,chrome);line(dc,0,0,r.right,0,border);
     if(!loaded){text(dc,message,{D(16),0,r.right,r.bottom},muted);return;}
-    auto f=currentRect();auto scale=panel==0?zoom:sceneZoom;
-    text(dc,std::to_wstring(f.w)+L" × "+std::to_wstring(f.h)+L" px",{D(16),0,D(150),r.bottom},muted);
-    text(dc,message,{D(152),0,r.right-D(85),r.bottom},foreground,DT_LEFT|DT_VCENTER|DT_SINGLELINE|DT_END_ELLIPSIS|DT_NOPREFIX);
+    auto scale=panel==0?zoom:sceneZoom;
+    text(dc,message,{D(12),0,r.right-D(85),r.bottom},foreground,DT_LEFT|DT_VCENTER|DT_SINGLELINE|DT_END_ELLIPSIS|DT_NOPREFIX);
     text(dc,std::to_wstring(rounded(scale*100))+L"%",{r.right-D(84),0,r.right-D(16),r.bottom},muted,DT_RIGHT|DT_VCENTER|DT_SINGLELINE);
 }
 void App::paintDetails(HDC dc,RECT r){
     if(inspectorTab==2){paintUvInspector(dc,r);return;}
     fill(dc,r,surfaceColor);if(!loaded)return;
     text(dc,L"原尺寸",{D(8),D(4),r.right,D(30)},muted);
-    frameCacheUpdate();int w=frameImage.w,h=frameImage.h;
+    frameCacheUpdate();int w=frameWidth,h=frameHeight;
     int x=(r.right-w)/2,y=(r.bottom+D(30)-h)/2;
-    imageToDC(dc,frameImage,{x,y,x+w,y+h});
+    drawFrame(dc,{x,y,x+w,y+h});
 }
 void App::paintTimeline(HDC dc,RECT r){
-    fill(dc,r,chrome);bool scene=!state["scene_animation"].null();int total=int(state["animation"]["steps"].size());
+    fill(dc,r,chrome);bool scene=studio()||!state["scene_animation"].null();int total=int(state["animation"]["steps"].size());
     double t=scene?sceneClock()/pf::max(1.,sceneDuration()):step/double(pf::max(1,total-1));
     int left=D(10),right=r.right-D(100),y=r.bottom/2,thumb=left+rounded((right-left)*pf::clamp(t,0.,1.));
     fill(dc,{left,y-D(2),right,y+D(2)},border);fill(dc,{left,y-D(2),thumb,y+D(2)},accent);
@@ -235,7 +297,9 @@ void App::syncPlayback(){
     if(showTransport())timeline->redraw();
 }
 void App::togglePlayback(){
+    if(studio()&&partMode)return;
     playing=!playing;playStart=milliseconds();
+    if(studio()){if(playing&&rigTime>=rigEnd)rigTime=0;syncPlayback();return;}
     if(playing&&scenePlayer&&scenePlayer->finished){scenePlayer->seek(0);elapsed=sceneClock();programTextureStep();}
     else if(state["scene_animation"].null()){
         if(playing&&step+1==int(state["animation"]["steps"].size()))seek(0,false);
@@ -244,16 +308,49 @@ void App::togglePlayback(){
     syncPlayback();
 }
 
+void App::canvasSizeMenu(){
+    if(playerSkin()){message=L"原版玩家皮肤使用固定的 64 × 64 px 画布。";statusBar->redraw();return;}
+    auto observed=tokens();auto f=currentRect();
+    bool multiple=state["animation"]["rectangles"].size()>1;
+    choice::Menu menu;menu.heading(multiple?L"所有帧的尺寸":L"画布尺寸");
+    for(int size:{16,32,64,128,256,512,1024})menu.item(size,dimensions(size,size),size==f.w&&size==f.h);
+    constexpr int custom=5000;menu.separator();menu.item(custom,L"自定义宽高…");
+    int choice=menu.open(handles.at("canvas_size"),true);if(!choice)return;
+    int w=choice,h=choice;
+    if(choice==custom){
+        auto result=inputDialog(hwnd,font,multiple?L"调整所有帧的尺寸":L"调整画布尺寸",
+            {{L"宽（像素）",std::to_wstring(f.w)},{L"高（像素）",std::to_wstring(f.h)}});
+        if(!result.accepted)return;
+        w=pixelDimension(result.values[0]);h=pixelDimension(result.values[1]);
+    }
+    if(w==f.w&&h==f.h)return;
+    if(observed!=tokens())throw std::runtime_error("工程已变化，请重新选择画布尺寸");
+    mutate("canvas_resize",J::object({{"width",w},{"height",h}}));
+}
+
 void App::fileMenu(){
-    HMENU popup=CreatePopupMenu();std::vector<std::function<void()>> items;
-    auto add=[&](const wchar_t* label,std::function<void()> fn){items.push_back(std::move(fn));AppendMenuW(popup,MF_STRING,items.size(),label);};
-    auto separator=[&]{AppendMenuW(popup,MF_SEPARATOR,0,nullptr);};
-        add(L"打开…\tCtrl+O",[this]{openProject();});add(L"保存工程\tCtrl+S",[this]{saveProject();});
-        add(L"工程另存为…\tCtrl+Shift+S",[this]{saveProject(true);});
-        separator();add(L"导出 PNG…\tCtrl+E",[this]{exportPng();});
-    RECT anchor;GetWindowRect(handles.at("file"),&anchor);
-    int selected=TrackPopupMenu(popup,TPM_RETURNCMD|TPM_LEFTALIGN,anchor.left,anchor.bottom,0,hwnd,nullptr);
-    DestroyMenu(popup);if(selected)items.at(selected-1)();
+    choice::Menu menu;std::vector<std::function<void()>> items;
+    auto add=[&](const wchar_t* label,std::function<void()> fn){items.push_back(std::move(fn));menu.item(int(items.size()),label);};
+    add(L"新建工程…\tCtrl+N",[this]{startPage.show(true);});
+    add(L"打开…\tCtrl+O",[this]{openProject();});add(L"保存工程\tCtrl+S",[this]{saveProject();});
+    add(L"工程另存为…\tCtrl+Shift+S",[this]{saveProject(true);});
+    add(L"导出 PNG…\tCtrl+E",[this]{exportPng();});
+    menu.separator();menu.heading(L"玩家皮肤");
+    auto newSkin=[this](std::string arms){saveBefore([this,arms]{
+        mutate("create_project",J::object({{"settings",J::object({{"preset","player_skin"},{"arm_model",arms}})}}));
+    });};
+    add(L"新建宽臂皮肤（Classic）",[newSkin]{newSkin("classic");});
+    add(L"新建细臂皮肤（Slim）",[newSkin]{newSkin("slim");});
+    add(L"打开宽臂皮肤 PNG…",[this]{openProject({},"classic");});
+    add(L"打开细臂皮肤 PNG…",[this]{openProject({},"slim");});
+    menu.separator();menu.heading(L"骨骼玩家模型");
+    add(L"新建骨骼角色…",[this]{newRig();});
+    add(L"打开 Blockbench 工程…",[this]{auto path=chooseFile(hwnd,workspace,false,L"Blockbench 工程\0*.bbmodel\0",nullptr);if(!path.empty())openProject(path);});
+    if(playerRig().isObject()){
+        add(L"另存 Blockbench 工程…",[this]{saveRig(false);});
+        add(L"导出 YSM 模型包…",[this]{saveRig(true);});
+    }
+    int selected=menu.open(handles.at("file"),false,620);if(selected)items.at(selected-1)();
 }
 void App::command(int id,int notification){
     if(loading)return;auto b=buttons.find(id);
@@ -264,22 +361,34 @@ void App::command(int id,int notification){
         userAction([this,name]{mutate("layer_select",J::object({{"name",name}}));});return;
     }
     if(notification!=CBN_SELCHANGE)return;int i=comboIndex(h);
-    if(h==sizeCombo){brushSize=i+1;SetFocus(canvasView->hwnd);}
-    else if(h==opacityCombo){brushOpacity=i+1;SetFocus(canvasView->hwnd);}
-    else if(h==sceneStateCombo&&scenePlayer){
+    if(h==rigBoneCombo&&i>=0){rigBone=rigBoneNames.at(i);rigCube.clear();rigCubeId.clear();rigPicked=true;refreshRigTree();if(partMode){J ids=J::array();for(auto& s:rigCubeIds)ids.arr().push_back(s);chooseParts(ids);}rigFocusedKey();redrawRig();return;}
+    if(h==rigCubeCombo&&i>=0){rigCube=rigCubeNames.at(i);if(studio())setRigCube(rigCubeIds.at(i));return;}
+    if(studio()&&i>=0){
+        if(h==partToolCombo||h==partAxisCombo){if(h==partToolCombo)partTool=i;else partAxis=i;setPartAxis();return;}
+        if(h==sceneStateCombo){changeRigClip(playerRig()["clips"][i]["name"].str());return;}
+        if(h==rigTextureCombo){rigTexture=i-1;redrawRig();return;}
+        if(h==rigChannelCombo||h==rigAxisCombo){if(h==rigAxisCombo)rigAxis=i;else rigChannel=std::array<const char*,3>{"rotation","position","scale"}[i];rigFocusedKey();redrawRig();return;}
+        if(h==rigStyleCombo&&!rigKeyId.empty()){rigCommit(J::object({{"op","key"},{"clip",rigClip},{"bone",rigBone},{"channel",rigChannel},{"uuid",rigKeyId},{"time_ms",rigTime},{"interpolation",std::array<const char*,4>{"linear","step","catmullrom","bezier"}[i]}}));return;}
+    }
+    if(h==sceneStateCombo&&scenePlayer){
         auto& states=state["scene_animation"]["states"];if(i==int(states.size()))stateAction("demo");else if(i>=0)stateAction("preview",states[i]["id"].str());
     }
 }
 void App::drawButton(const DRAWITEMSTRUCT& item){
+    if(startPage.drawButton(item))return;
     if(item.CtlType==ODT_LISTBOX){drawLayer(item);return;}
     auto b=buttons.find(int(item.CtlID));if(b==buttons.end())return;
     auto& button=b->second;bool checked=button.checked&&button.checked(),disabled=(item.itemState&ODS_DISABLED)!=0;
     auto dc=item.hDC;auto r=item.rcItem;fill(dc,r,chrome);
+    auto is=[&](const char* key){auto it=handles.find(key);return it!=handles.end()&&button.hwnd==it->second;};
+    if(is("canvas_size")||is("file")||is("rig_more")){
+        choice::paintTrigger(dc,r,button.hwnd,button.title,is("canvas_size")?choice::Trigger::footer:choice::Trigger::command,(item.itemState&ODS_SELECTED)!=0);return;
+    }
     bool swatch=button.hwnd==handles.at("color_chip");
-    COLORREF bg=checked?RGB(69,65,96):surfaceColor;
+    COLORREF bg=checked?RGB(69,65,96):!disabled&&choice::hovered(button.hwnd)?RGB(54,57,65):surfaceColor;
     if(item.itemState&ODS_SELECTED)bg=RGB(77,81,96);
     if(button.toggle){
-        drawViewSwitch(dc,r,button.title,checked,!disabled,dpi,chrome);
+        drawViewSwitch(dc,r,button.title,checked,!disabled,dpi,!disabled&&choice::hovered(button.hwnd)?bg:chrome);
         drawButtonFocus(dc,item.rcItem,button.hwnd,item.itemState);return;
     }
     auto brush=CreateSolidBrush(bg);auto oldBrush=SelectObject(dc,brush);
@@ -295,8 +404,10 @@ void App::tooltips(){
     tooltipWindow=CreateWindowExW(WS_EX_TOPMOST,TOOLTIPS_CLASSW,nullptr,WS_POPUP|TTS_ALWAYSTIP|TTS_NOPREFIX,CW_USEDEFAULT,CW_USEDEFAULT,CW_USEDEFAULT,CW_USEDEFAULT,hwnd,nullptr,GetModuleHandleW(nullptr),nullptr);
     for(auto [key,hint]:{std::pair<const char*,const wchar_t*>{"side",L"显示或收起侧栏"},{"fit",L"适应窗口  Ctrl+0"},{"grid",L"像素网格"},{"tile",L"3 × 3 平铺"},{"solid",L"填充矩形或椭圆内部"},
         {"tool_hand",L"平移 H · 滚轮缩放"},{"tool_pen",L"画笔 B · 右键取色"},{"tool_eraser",L"橡皮 E"},{"tool_fill",L"填充相邻同色像素 G"},{"tool_picker",L"取色 I"},{"tool_line",L"直线 L"},{"tool_rect",L"矩形 U"},{"tool_ellipse",L"椭圆 O"},{"tool_select",L"选区 M"},{"tool_move",L"移动选区 V"},
-        {"brush_size",L"画笔宽度"},{"color_chip",L"选择前景色"},{"color_field",L"上方调整饱和度和明度，下方选色相"},{"palette",L"点击色块取色，滚轮浏览工程色"},{"layer_select",L"当前绘制图层"},
-        {"undo",L"撤销  Ctrl+Z"},{"redo",L"重做  Ctrl+Y"},{"state_select",L"选择播放状态"}})tooltipText[handles.at(key)]=hint;
+        {"brush_size",L"单击输入，左右拖动调节；箭头每次 1 px。上限为当前帧短边。"},{"opacity",L"单击输入，左右拖动调节；箭头每次 1%。范围 0–100%。"},
+        {"color_chip",L"选择前景色"},{"color_field",L"上方调整饱和度和明度，下方选色相"},{"palette",L"点击色块取色，滚轮浏览工程色"},{"layer_select",L"当前绘制图层"},
+        {"undo",L"撤销  Ctrl+Z"},{"redo",L"重做  Ctrl+Y"},{"state_select",L"选择播放状态"},
+        {"canvas_size",L"切换画布像素尺寸 · 所有图层按最近邻缩放，可撤销"}})tooltipText[handles.at(key)]=hint;
     for(auto& [control,label]:tooltipText){TOOLINFOW info{TTTOOLINFOW_V2_SIZE};info.uFlags=TTF_IDISHWND|TTF_SUBCLASS;info.hwnd=GetParent(control);info.uId=UINT_PTR(control);info.lpszText=label.data();SendMessageW(tooltipWindow,TTM_ADDTOOLW,0,LPARAM(&info));}
 }
 }

@@ -5,3 +5,4 @@
 - GUI 与命令共用同一工程及撤销历史。保留既有文件格式、版本冲突检查、恢复稿、确认与导出校验。普通使用只依赖命令契约，无需读取私有实现。
 - 开发构建用同目录 `pixforge-development.json` 指定应用自己的私有核心；发行包使用相邻 `backend`。不得搜索 skill 目录启动软件。
 - 软件与 skill 分别版本管理；允许 skill 携带完整生成的软件包，软件仍可独立运行。分发包不含开发描述、私人作品或会话；用无外部 Python/PATH 依赖的隔离迁移验证。
+- 本地交付固定使用消费项目的 `outputs/PixForge/PixForgeNative.exe` 和 `outputs/PixForge-Portable-Windows-x64.zip`。每次先结束该实例，复用默认构建目录，调用 `package_native.py --binary <EXE> --deliver-to <消费项目>/outputs` 原位更新，保留工作区及用户文件；版本号记录在软件和清单中，不另建版本目录、压缩包或快捷方式。

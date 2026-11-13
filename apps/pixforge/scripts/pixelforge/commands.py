@@ -6,7 +6,7 @@ import inspect
 import re
 
 from pydantic import ConfigDict, ValidationError, create_model
-from .command_catalog import CATALOG, PURPOSES
+from .command_catalog import CATALOG
 from .shape_builder import DEFAULT_BUILD_ERROR, DEFAULT_BUILD_TARGET_BOXES
 
 
@@ -214,6 +214,8 @@ def build_commands(session, *, workspace=None, runtime=None):
         Optional x/y are atlas pixel coordinates in the selected frame, matching draw/read.
         Returns ALL faces sampling that texel, including partial overlaps. No model means
         no guessed cube mapping. Read this before editing a particular face of an atlas.
+        Player skins also return uv_map.player_skin.parts with wearer-relative face rectangles
+        [x,y,width,height] on the base and outer layers; point.faces[].skin identifies the hit.
         This read-only query does not change pixels, history or approval.
         """
         return call("model_uv", **{k: v for k, v in dict(frame=frame, x=x, y=y).items() if v is not None})
@@ -234,7 +236,13 @@ def build_commands(session, *, workspace=None, runtime=None):
     def plan_project(settings: dict | None = None) -> CommandResult:
         """Plan model-first creation without changing artwork; return dimensions and UV.
 
-        preset: cube_faces (default, separate 3x2 faces), cube_shared, model or pixels.
+        preset: cube_faces (default, separate 3x2 faces), cube_shared, model, pixels, player_skin, player_rig or component_model.
+        cube_faces and cube_shared start with one editable block; canvas draw and model edit-rig
+        work on the same project. component_model retains the older 64x64 component template.
+        player_rig takes name and texture_size [128,128] (default) or a complete rig object;
+        its Blockbench-space bones compile to the shared textured preview and clip timeline.
+        player_skin uses the modern 64x64 atlas, arm_model "classic" (default) or "slim",
+        six body parts, independent outer shells and no interaction boxes.
         Built-in cubes accept face_size (default 16). model accepts a resolved Java
         model object and optional width/height; its UV/rotation/sharing is preserved.
         pixels accepts width/height for an explicitly model-free canvas. Models and
@@ -245,10 +253,12 @@ def build_commands(session, *, workspace=None, runtime=None):
 
     @operation()
     def create_project(settings: dict, expected_document_id: str, expected_revision: int) -> CommandResult:
-        """Create one blank project from settings after validating model and UV.
+        """Create an editable project from settings and its model UV.
 
         Replaces the observed document after validation; retains its recovery copy.
-        Pixels start transparent; guides never become pixels. Model and UV are saved
+        player_skin starts with opaque base faces and an empty outer layer. Rig and
+        component starters include a painted atlas; pixel and cube textures start transparent.
+        Guides never become pixels. Model and UV are saved
         together and drive both the canvas partitions and 3D preview. base_boxes
         sets collision/selection geometry independently of visible elements.
         """
@@ -325,6 +335,11 @@ def build_commands(session, *, workspace=None, runtime=None):
         if frame_height is not None:
             options["frame_height"] = frame_height
         return options
+
+    @operation()
+    def resize_canvas(width: int, height: int, expected_document_id: str, expected_revision: int) -> CommandResult:
+        """Set pixel width and height per frame using nearest-neighbor sampling, as one undoable edit. Layers, playback steps and timings are preserved."""
+        return call("canvas_resize", width=width, height=height, expected_document_id=expected_document_id, expected_revision=expected_revision)
 
     @operation()
     def draw(commands: str, expected_document_id: str, expected_revision: int,
@@ -408,9 +423,45 @@ def build_commands(session, *, workspace=None, runtime=None):
         return call("save", path=path, expected_document_id=expected_document_id, expected_revision=expected_revision)
 
     @operation()
-    def open_project(path: str, expected_document_id: str, expected_revision: int) -> CommandResult:
-        """Open a project, PNG or .px, preserving outgoing unsaved work in recovery."""
-        return call("open", path=path, expected_document_id=expected_document_id, expected_revision=expected_revision)
+    def open_project(path: str, expected_document_id: str, expected_revision: int,
+                     arm_model: Literal["classic", "slim"] | None = None) -> CommandResult:
+        """Open an editable .pixforge, multi-texture Bedrock .bbmodel, PNG or .px. Set arm_model to open a 64x64 PNG as a player skin
+        with its matching body geometry and editable base/outer layers."""
+        return call("open", path=path, expected_document_id=expected_document_id, expected_revision=expected_revision,
+                    arm_model=arm_model)
+
+    @operation()
+    def inspect_player_rig(clip: str | None=None, bone: str | None=None, cube_ids: list[str] | None=None) -> CommandResult:
+        """List textures, bones (with UUIDs) and all clips, or read one original clip or bone animator and its complete keyframes. cube_ids reads selected cube bounds, pivots and per-face UVs in the bound texture coordinates."""
+        return call("rig_inspect",clip=clip,bone=bone,cube_ids=cube_ids)
+
+    @operation()
+    def edit_player_rig(operations: list[dict], expected_document_id: str, expected_revision: int) -> CommandResult:
+        """Edit bones, parent links, pivots, cubes, box or per-face UVs and keyframes in one undo step.
+
+        transform_cubes {cube_ids:[UUID,...], scale:[sx,sy,sz], rotation:[x,y,z] degrees,
+        anchor:"selection"|"individual"|[x,y,z], pivot_delta:[dx,dy,dz] or pivot:[x,y,z]} edits bind geometry once per cube.
+        face_uv {cube_ids:[UUID,...],face:"north",uv:[u0,v0,u1,v1] or offset:[du,dv] or delta:[du0,dv0,du1,dv1],rotation:0|90|180|270,flip:"u"|"v"}.
+        UV endpoints are local to the face's bound texture. Inspect cube_ids before editing.
+        Other operations: bone {bone,parent,pivot,rotation}; cube {bone,name,from,to,uv} (or faces);
+        delete_cube {bone,name}; delete_bone {bone} includes descendants; clip {name,duration_ms,loop};
+        key/delete_key {clip,bone,channel,time_ms,value:[x,y,z]}. Positions are absolute bind-space,
+        +Y up, front is -Z (Blockbench). Use UUID or unique name; cube_id disambiguates cube labels.
+        key accepts uuid/from_time_ms, axis+axis_value or value, interpolation (linear/step/catmullrom/bezier),
+        Bezier handle vectors, data_points. face_texture {bone,cube_id,faces,texture} binds faces;
+        texture {texture,rename/source} changes an embedded image; add_texture {name,source} adds PNG data. Inspect a clip before editing.
+        """
+        return call("rig_edit",operations=operations,expected_document_id=expected_document_id,expected_revision=expected_revision)
+
+    @operation()
+    def export_player_rig(path: str, format: Literal["bbmodel","ysm"], expected_document_id: str, expected_revision: int,
+                          metadata: dict | None=None, overwrite: bool=False) -> CommandResult:
+        """Save an editable self-contained .bbmodel or an approved YSM spec 2 .zip model package.
+        YSM outputs main/first-person arm geometry, PNG, named Bedrock clips and ysm.json.
+        metadata can set name, authors, tips and license. Both outputs use the current editable atlas.
+        """
+        return call("rig_export",path=path,format=format,metadata=metadata,overwrite=overwrite,
+                    expected_document_id=expected_document_id,expected_revision=expected_revision)
 
     @operation()
     def configure_animation(expected_document_id: str, expected_revision: int,
@@ -454,16 +505,20 @@ def build_commands(session, *, workspace=None, runtime=None):
     @operation()
     def preview_shapes(size: int = 400, yaw: float = 35, pitch: float = 30,
                        overlays: list[str] | None = None, include_html: bool = False,
-                       frame: int | None = None, time_ms: float = 0, show_model: bool = True) -> CommandResult:
+                       frame: int | None = None, time_ms: float = 0, show_model: bool = True,
+                       scene_state: str | None = None, rig_texture: str | None = None,
+                       hidden_skin_overlays: list[Literal["hat","jacket","right_sleeve","left_sleeve","right_pants","left_pants"]] | None = None) -> CommandResult:
         """Read-only textured model and x-ray shape overlay, with optional interactive HTML.
 
         Overlays are base/collision/selection. Preview is independent of GUI and approval.
         PNG and HTML share camera and visibility. The HTML for a bound item
         also shows its actual Minecraft GUI transform alongside the orbit view.
+        hidden_skin_overlays hides only those pieces of clothing in the preview, never in the PNG.
         """
         return call("shape_preview", size=size, yaw=yaw, pitch=pitch,
                     overlays=overlays if overlays is not None else [], html=include_html,
-                    time_ms=time_ms, show_model=show_model, **({"frame": frame} if frame is not None else {}))
+                    time_ms=time_ms, scene_state=scene_state,rig_texture=rig_texture,show_model=show_model, hidden_skin_overlays=hidden_skin_overlays or [],
+                    **({"frame": frame} if frame is not None else {}))
 
     @operation()
     def build_shapes(expected_document_id: str, expected_revision: int, target: str = "base",

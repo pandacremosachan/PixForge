@@ -1,5 +1,6 @@
 """Shared lossless frame packing for manual editing and direct animation preparation."""
 from PIL import Image
+from .canvas import Canvas, Layer
 from .document import StudioError, playback
 
 
@@ -12,16 +13,17 @@ def repack_frames(canvas, rectangles, order, *, complete=True):
                     if (not complete or count % n == 0) and ((count + n - 1) // n) * height <= 4096), None)
     if columns is None:
         raise StudioError("新图集超出画布尺寸上限；请减少帧数或帧尺寸")
-    candidate = canvas.clone()
-    candidate.w, candidate.h = columns * width, ((count + columns - 1) // columns) * height
+    candidate = Canvas(columns * width, ((count + columns - 1) // columns) * height, layers=[])
+    candidate.active_index,candidate.mirror = canvas.active_index,canvas.mirror
+    candidate.palette.chars = canvas.palette.chars.copy()
     packed = [[i % columns * width, i // columns * height, width, height] for i in range(count)]
-    for layer in candidate.layers:
+    for layer in canvas.layers:
         image = Image.new("RGBA", (candidate.w, candidate.h))
         for i, old in enumerate(order):
             if old is not None:
                 x, y, w, h = rectangles[old]
                 image.paste(layer.img.crop((x, y, x + w, y + h)), packed[i][:2])
-        layer.img = image
+        candidate.layers.append(Layer(layer.name,candidate.w,candidate.h,image,layer.visible))
     return candidate, packed
 
 
@@ -56,7 +58,7 @@ def prepare_frames(document, settings):
     validate_binding(document.scene_animation, plan)
     from .material_data import remap
     material = remap(document.material_data, old, order, rectangles, (candidate.w, candidate.h))
-    before, previous = document.snapshot(), document.art_digest()
+    before, previous = document.snapshot(document.canvas), document.art_digest()
     from .protocol import Executor
     document.executor, document.animation = Executor(candidate), plan
     document.animation_source, document.material_data = None, material

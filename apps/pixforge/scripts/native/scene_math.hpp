@@ -59,15 +59,6 @@ inline std::vector<Face> poseMesh(const std::vector<Face>& base,const J& scene,d
 inline std::vector<SceneParticle> sceneParticles(const J& scene,double time,const J& view=J()){
     if(scene.null())return {};auto e=sceneResolve(scene,time,view);auto out=sceneClipParticles(e.clip,e.view["time_ms"].number(),e.view),carry=sceneCarryParticles(e.view["carry"],e.view["time_ms"].number());out.insert(out.end(),carry.begin(),carry.end());if(out.size()>2048)out.resize(2048);return out;
 }
-// Cover every state's channel range and all released particle trajectories.
-inline std::pair<Vec,Vec> scenePointBounds(const J& scene,int element,Vec lo,Vec hi){
-    for(auto& track:sceneEntries(scene,"transforms").arr()){
-        bool applies=false;for(auto& id:track["elements"].arr())if(id.integer()==element)applies=true;if(!applies)continue;
-        auto pivot=vec(track["pivot"]);auto type=track["type"].str();
-        if(type=="rotate"){double r=0;for(auto p:vertices(lo,hi))r=pf::max(r,length(p-pivot));lo=pivot-Vec{r,r,r};hi=pivot+Vec{r,r,r};}
-        else{auto range=sceneValueRange(scene,track);for(int i=0;i<3;++i){if(type=="translate"){lo.at(i)+=range.first.at(i);hi.at(i)+=range.second.at(i);}else{double a=lo.at(i)-pivot.at(i),b=hi.at(i)-pivot.at(i),s=range.first.at(i),S=range.second.at(i);lo.at(i)=pivot.at(i)+pf::min({a*s,a*S,b*s,b*S});hi.at(i)=pivot.at(i)+pf::max({a*s,a*S,b*s,b*S});}}}
-    }return {lo,hi};
-}
 // Keep a sphere through the chain: reboxing it at every joint otherwise
 // multiplies its radius, even when all rotations have the same pivot.
 inline std::pair<Vec,double> scenePointSphere(const J& scene,int element,Vec lo,Vec hi){

@@ -1,0 +1,6 @@
+# 右臂外层：一圈金色袖边，正面留一枚深色搭扣。两条笔画可换成自己的图案。
+mirror off
+layer use outer
+rect 40 40 53 41 #e0a64d
+rect 45 40 45 40 #315655
+layer use base

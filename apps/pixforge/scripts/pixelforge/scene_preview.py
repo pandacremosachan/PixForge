@@ -43,7 +43,7 @@ def contact_sheet(document):
 
 
 def preview(document, options=None):
-    from .session import image_data
+    from .image_bytes import png_base64
     from .document import StudioError
     options = options or {}
     metadata = {k:document.status()[k] for k in ("document_id","revision","content_digest")}
@@ -59,6 +59,6 @@ def preview(document, options=None):
                 'scene_schema':document.scene_animation['schema'],'not_human_approval':True,
                 'not_aesthetic_or_game_validation':True}
     return {"state":document.status(),"report":report,
-            "image":image_data(contact_sheet(document)),
+            "image":png_base64(contact_sheet(document)),
             "html":html(document.shapes,document.canvas,document.animation,metadata,scene=document.scene_animation,
                         view={"size":520,"yaw":35,"pitch":28,"overlays":[],"show_model":True})}

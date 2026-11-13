@@ -46,6 +46,8 @@ def model(value):
     """Embed one resolved Java model; all preview faces use the current atlas."""
     if value is None:
         return None
+    if isinstance(value, dict) and "rig_source" in value:
+        return value  # Bedrock geometry belongs to its own skeleton, not the Java block format.
     if not isinstance(value, dict) or not isinstance(value.get("elements"), list) or not 1 <= len(value["elements"]) <= 256:
         raise ValueError("模型须含 1..256 个显式 elements；先解析父模型")
     result = deepcopy(value)

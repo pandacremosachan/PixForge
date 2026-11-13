@@ -6,13 +6,13 @@ All errors carry absolute coordinates so a model can self-correct.
 `read` emits a copy-pasteable script fragment.
 """
 import re
-import io
 import json
 from pathlib import Path
 from collections import Counter
 
 from .canvas import Canvas
-from .palette import CHAR_POOL, TRANSPARENT, TRANSPARENT_CHAR, Palette, color_to_hex, parse_color
+from .image_bytes import png
+from .palette import CHAR_POOL, TRANSPARENT, TRANSPARENT_CHAR, color_to_hex, parse_color
 
 COMMANDS = {
     "new", "layer", "mirror", "palette", "grid", "rle", "patch", "set",
@@ -55,13 +55,15 @@ class Executor:
         self.canvas = canvas
         self._pending_outputs = None
         self._input_paths = set()
+        self._step_history = True
 
     def run_batch(self, text: str, *, dry_run: bool = False, output=None, scale=1, save=None,
-                  include_preview=False, preview_path=None, preview_options=None, publish_outputs=True):
+                  include_preview=False, preview_path=None, preview_options=None, publish_outputs=True, document_history=False):
         """Execute on a clone; publish outputs and one undo step only after success."""
         from .transactions import BatchResult, canvas_digest, change_summary, commit_files
 
         candidate = Executor(self.canvas.clone() if self.canvas is not None else None)
+        candidate._step_history = not document_history
         candidate._pending_outputs = {}
         messages = candidate.run_script(text)
         if output is not None and save is not None and Path(output).resolve() == Path(save).resolve():
@@ -79,21 +81,22 @@ class Executor:
                 path = Path(preview_path).resolve()
                 if path in candidate._pending_outputs or path in candidate._input_paths:
                     raise PixForgeError("preview must not overwrite a production PNG or session output")
-                buffer = io.BytesIO()
-                evidence.save(buffer, format="PNG")
-                evidence_files[path] = buffer.getvalue()
+                evidence_files[path] = png(evidence)
         summary = change_summary(self.canvas, candidate.canvas)
-        changed = canvas_digest(self.canvas) != canvas_digest(candidate.canvas)
+        old, new = self.canvas, candidate.canvas
+        changed = bool(summary["changed_layers"]) or summary["size_before"] != summary["size_after"]
+        if old is not None and new is not None:
+            changed |= (old.layer_names(), old.active_index, old.mirror, old.palette.chars) != (new.layer_names(), new.active_index, new.mirror, new.palette.chars)
         summary.update(dry_run=dry_run, state_changed=changed,
                        outputs=[str(path) for path in candidate._pending_outputs])
         if preview_path is not None:
             summary["preview"] = str(Path(preview_path).resolve())
         if not dry_run:
-            if candidate.canvas is not None:
+            if candidate.canvas is not None and not document_history:
                 baseline = self.canvas or Canvas(candidate.canvas.w, candidate.canvas.h)
                 candidate.canvas._undo = list(self.canvas._undo) if self.canvas else []
                 candidate.canvas._redo = list(self.canvas._redo) if self.canvas else []
-                if canvas_digest(baseline) != canvas_digest(candidate.canvas):
+                if (changed if self.canvas is not None else canvas_digest(baseline) != canvas_digest(candidate.canvas)):
                     candidate.canvas._undo.append(baseline._snapshot())
                     candidate.canvas._undo = candidate.canvas._undo[-candidate.canvas.UNDO_LIMIT:]
                     candidate.canvas._redo.clear()
@@ -175,7 +178,7 @@ class Executor:
                 for i, l in enumerate(canvas.layers)
             ]
             return ["layers: " + "  ".join(marks)]
-        canvas.push_undo()
+        if self._step_history: canvas.push_undo()
         try:
             if sub == "add":
                 if not name:
@@ -247,7 +250,7 @@ class Executor:
                     )
                 pixels.append(color)
         tile = Canvas._tile_from_pixels(pixels, width, len(payload))
-        canvas.push_undo()
+        if self._step_history: canvas.push_undo()
         canvas.apply_tile(tile, x, y)
         return [f"grid {width}x{len(payload)} at ({x},{y}) mirror={canvas.mirror}"]
 
@@ -294,7 +297,7 @@ class Executor:
                 )
             pixels.extend(row_pixels)
         tile = Canvas._tile_from_pixels(pixels, width, len(payload))
-        canvas.push_undo()
+        if self._step_history: canvas.push_undo()
         canvas.apply_tile(tile, x, y)
         return [f"rle {width}x{len(payload)} at ({x},{y}) mirror={canvas.mirror}"]
 
@@ -326,7 +329,7 @@ class Executor:
                             f"payload row {r} cell {c} (canvas {x + c},{y + r}): {e}"
                         ) from None
         tile = Canvas._tile_from_pixels(pixels, w, h)
-        canvas.push_undo()
+        if self._step_history: canvas.push_undo()
         canvas.apply_tile(tile, x, y)
         return [f"patch {w}x{h} at ({x},{y}) mirror={canvas.mirror}"]
 
@@ -338,7 +341,9 @@ class Executor:
         x, y = _int(args[0], "X"), _int(args[1], "Y")
         if not (0 <= x < canvas.w and 0 <= y < canvas.h):
             raise PixForgeError(f"set ({x},{y}) is outside canvas {canvas.w}x{canvas.h}")
-        canvas.set_pixel(x, y, _color(args[2]))
+        color = _color(args[2])
+        if self._step_history: canvas.push_undo()
+        canvas._set_pixel_raw(x, y, color)
         return [f"set ({x},{y})"]
 
     def cmd_rect(self, args: list[str], payload: list[str]) -> list[str]:
@@ -347,7 +352,9 @@ class Executor:
         if len(args) != 5:
             raise PixForgeError("usage: rect X0 Y0 X1 Y1 #rrggbbaa  (inclusive corners)")
         x0, y0, x1, y1 = (_int(a, "coord") for a in args[:4])
-        canvas.fill_rect(x0, y0, x1, y1, _color(args[4]))
+        color = _color(args[4])
+        if self._step_history: canvas.push_undo()
+        canvas._fill_rect_raw(x0, y0, x1, y1, color)
         return [f"rect ({x0},{y0})-({x1},{y1})"]
 
     def cmd_clear(self, args: list[str], payload: list[str]) -> list[str]:
@@ -356,11 +363,15 @@ class Executor:
         if len(args) != 4:
             raise PixForgeError("usage: clear X0 Y0 X1 Y1  (inclusive corners)")
         x0, y0, x1, y1 = (_int(a, "coord") for a in args)
-        canvas.fill_rect(x0, y0, x1, y1, TRANSPARENT)
+        if self._step_history: canvas.push_undo()
+        canvas._fill_rect_raw(x0, y0, x1, y1, TRANSPARENT)
         return [f"cleared ({x0},{y0})-({x1},{y1})"]
 
     def cmd_read(self, args: list[str], payload: list[str]) -> list[str]:
         self._check_no_payload(payload)
+        return self.read_region(args, self.canvas.palette if self.canvas is not None else None)
+
+    def read_region(self, args, palette):
         canvas = _need_canvas(self.canvas)
         if len(args) not in (4, 5) or (len(args) == 5 and args[4] != "raw"):
             raise PixForgeError("usage: read X Y W H [raw]")
@@ -372,29 +383,33 @@ class Executor:
                 f"read region ({x},{y}) {w}x{h} exceeds canvas {canvas.w}x{canvas.h}"
             )
         img = canvas.region(x, y, w, h)
-        data = img.tobytes()
-        raw = [tuple(data[i:i + 4]) for i in range(0, len(data), 4)]
         def raw_fragment():
             out = [f"# read raw ({x},{y}) {w}x{h}", f"patch {x} {y} {w} {h}"]
+            data = img.tobytes()
             for r in range(h):
-                out.append(" ".join(color_to_hex(raw[r * w + c]) for c in range(w)))
+                out.append(data[4*r*w:4*(r+1)*w].hex(" ", 4))
             return out
-        colors = dict.fromkeys(raw)
-        new_colors = sum(canvas.palette.char_for(color) is None for color in colors)
-        available = sum(char not in canvas.palette.chars for char in CHAR_POOL)
-        if len(args) == 5 or len(colors) > READ_MAX_COLORS or new_colors > available:
+        if len(args)==5: return raw_fragment()
+        colors = {}
+        for pixel in img.getdata():
+            colors[pixel] = None
+            if len(colors)>READ_MAX_COLORS: return raw_fragment()
+        new_colors = sum(palette.char_for(color) is None for color in colors)
+        available = sum(char not in palette.chars for char in CHAR_POOL)
+        if new_colors > available:
             return raw_fragment()
         new_defs: dict[str, tuple[int, int, int, int]] = {}
         char_of: dict[tuple[int, int, int, int], str] = {}
         for color in colors:  # distinct, row-major first-seen order
-            ch = canvas.palette.char_for(color)
+            ch = palette.char_for(color)
             if ch is None:
-                ch = canvas.palette.alloc_char()
-                canvas.palette.define(ch, color)
+                ch = palette.alloc_char()
+                palette.define(ch, color)
             char_of[color] = ch
             if ch != TRANSPARENT_CHAR:
                 new_defs[ch] = color  # emit every used char so the fragment is self-contained
-        rows = ["".join(char_of[raw[r * w + c]] for c in range(w)) for r in range(h)]
+        pixels=iter(img.getdata())
+        rows = ["".join(char_of[next(pixels)] for _ in range(w)) for _ in range(h)]
         if any(row.startswith("#") or row.lower() in COMMANDS for row in rows):
             return raw_fragment()
         out = [f"# read ({x},{y}) {w}x{h}, {len(char_of)} colors"]
@@ -414,9 +429,7 @@ class Executor:
             raise PixForgeError("SCALE must be 1..64")
         img = canvas.render_png(scale, args[0] if self._pending_outputs is None else None)
         if self._pending_outputs is not None:
-            buffer = io.BytesIO()
-            img.save(buffer, format="PNG")
-            self._pending_outputs[Path(args[0]).resolve()] = buffer.getvalue()
+            self._pending_outputs[Path(args[0]).resolve()] = png(img)
         return [f"saved {args[0]} ({img.width}x{img.height}, scale {scale})"]
 
     def cmd_save(self, args: list[str], payload: list[str]) -> list[str]:

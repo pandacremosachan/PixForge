@@ -4,10 +4,11 @@ from fractions import Fraction
 import math
 
 from .model_uv import describe
+from . import player_skin
 from .shapes import boxes, default_shapes, model as normalize_model
 
 
-PRESETS = ("cube_faces", "cube_shared", "model", "pixels")
+PRESETS = ("cube_faces", "cube_shared", "model", "pixels", "player_skin", "player_rig", "component_model")
 
 
 def _size(value, name, maximum=4096):
@@ -16,13 +17,24 @@ def _size(value, name, maximum=4096):
     return value
 
 
-def cube(separate=True):
+def editable_block(w, h, tiles):
+    from PIL import Image
+    from .player_rig import SIDES, bone
+    from .rig_files import project
+    from .rig_studio import compile_model
+
     faces = {}
-    for i, direction in enumerate(("up", "north", "east", "south", "west", "down")):
-        uv = [i % 3 * 16/3, i//3 * 8, (i % 3+1) * 16/3, (i//3+1) * 8] if separate else [0, 0, 16, 16]
-        faces[direction] = {"uv": uv, "texture": "#atlas"}
-    return {"textures": {"atlas": "pixforge:block/new_texture", "particle": "#atlas"},
-            "elements": [{"name": "六面方块", "from": [0, 0, 0], "to": [16, 16, 16], "faces": faces}]}
+    for direction, tile in tiles.items():
+        uv = tile["uv"]
+        if direction in ("up","down"):
+            uv = uv[2:]+uv[:2]
+        faces[SIDES[direction]] = {**tile,"uv":uv}
+    # The component editor mirrors X/Z on the way to Java block coordinates (0..16).
+    part = {"name":"六面方块", "from":[-16,0,-16], "to":[0,16,0], "faces":faces}
+    rig = {"name":"block","texture_size":[w,h],"bones":[bone("方块",None,[-8,8,-8],[part])],"clips":[]}
+    src = project(rig,Image.new("RGBA",(w,h)))
+    src["textures"][0]["name"] = "block.png"
+    return compile_model(src,[[0,0,w,h]],(w,h))["model"]
 
 
 def _suggest_size(model):
@@ -49,23 +61,52 @@ def _suggest_size(model):
 def prepare(settings=None):
     if settings is None:
         settings = {}
-    if not isinstance(settings, dict) or set(settings) - {"preset", "model", "face_size", "width", "height", "base_boxes"}:
-        raise ValueError("新建设置仅支持 preset/model/face_size/width/height/base_boxes")
+    if isinstance(settings, dict) and settings.get("preset") in ("player_rig", "component_model"):
+        from .player_rig import starter, component_starter
+        preset = settings["preset"]
+        rig = settings.get("rig") or (component_starter() if preset == "component_model" else
+                                      starter(settings.get("name","player"),settings.get("texture_size",[128,128])))
+        from .rig_files import project
+        from .rig_studio import from_source
+        from PIL import Image
+        w,h=rig["texture_size"]
+        shapes,_=from_source(project(rig,Image.new("RGBA",(w,h))))
+        scene=None
+        return {"schema":"pixelforge.project-plan/v1","preset":preset,"settings":{"preset":preset,"rig":rig},
+                "canvas_size":[w,h],"size_source":"模型纹理图集","shapes":shapes,"scene_animation":scene,
+                "uv_map":describe(shapes["model"],[w,h]),"shape_report":None,"warnings":[],"pixels":"editable atlas"}
+    if not isinstance(settings, dict) or set(settings) - {"preset", "model", "face_size", "width", "height", "base_boxes", "arm_model"}:
+        raise ValueError("未知工程设置；使用 project plan 查询对应预设")
     preset = settings.get("preset", "model" if settings.get("model") is not None else "cube_faces")
     if not isinstance(preset, str):
         raise ValueError("无效新建类型")
     preset = preset.replace("-", "_")
     if preset not in PRESETS:
-        raise ValueError("新建类型须为 cube_faces/cube_shared/model/pixels")
+        raise ValueError("新建类型须为 " + "/".join(PRESETS))
+    if "arm_model" in settings and preset != "player_skin":
+        raise ValueError("arm_model 用于玩家皮肤")
     normalized = {"preset": preset}
-    if preset in ("cube_faces", "cube_shared"):
+    if preset == "player_skin":
+        if set(settings) - {"preset", "arm_model"}:
+            raise ValueError("玩家皮肤使用固定的 64×64 图集；选项为 arm_model: classic/slim")
+        arm_model = settings.get("arm_model", "classic")
+        if arm_model not in ("classic", "slim"):
+            raise ValueError("arm_model 须为 classic 或 slim")
+        normalized["arm_model"] = arm_model
+        model = player_skin.model(arm_model)
+        width = height = player_skin.SIZE
+        source = "Minecraft 玩家皮肤 · " + arm_model
+    elif preset in ("cube_faces", "cube_shared"):
         if any(k in settings for k in ("model", "width", "height")):
             raise ValueError("内置方块请用 face_size 设置每面像素尺寸")
         face_size = _size(settings.get("face_size", 16), "每面尺寸", 1024)
         separate = preset == "cube_faces"
-        model = cube(separate)
-        width, height = (face_size*3, face_size*2) if separate else (face_size, face_size)
-        model["texture_size"] = [width, height]
+        width,height = (3*face_size,2*face_size) if separate else (face_size,face_size)
+        tiles = {}
+        for i,direction in enumerate(("up","north","east","south","west","down")):
+            x,y = (i%3*face_size,i//3*face_size) if separate else (0,0)
+            tiles[direction] = {"uv":[x,y,x+face_size,y+face_size]}
+        model = editable_block(width,height,tiles)
         normalized["face_size"] = face_size
         source = "内置六面独立图集" if separate else "内置六面共用纹理"
     elif preset == "model":
@@ -94,7 +135,7 @@ def prepare(settings=None):
     if "base_boxes" in settings:
         shapes["base"] = boxes(settings["base_boxes"])
         normalized["base_boxes"] = deepcopy(shapes["base"])
-    elif preset in ("model", "pixels"):
+    elif preset in ("model", "pixels", "player_skin"):
         shapes["base"] = []
     mapping = describe(model, [width, height])
     warnings = []
@@ -105,4 +146,5 @@ def prepare(settings=None):
     return {"schema": "pixelforge.project-plan/v1", "preset": preset,
             "settings": normalized, "canvas_size": [width, height], "size_source": source,
             "shapes": shapes, "uv_map": mapping, "shape_report": None,
-            "warnings": warnings, "pixels": "transparent; UV guides are view-only"}
+            "warnings": warnings, "pixels": ("opaque base faces; transparent outer layer and padding"
+                                              if preset == "player_skin" else "transparent; UV guides are view-only")}

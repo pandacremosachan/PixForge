@@ -1,10 +1,10 @@
 # 连接常驻 PixForge
 
-W 是消费项目的绝对路径，R 是该工程的会话目录，默认位于 `W/.runtime/pixelforge-desktop`。`R/commands.json` 是公开连接文件；校对其中的工作区，使用会话地址和凭据连接。初次启动或进程已退出时，后台打开一次 EXE。它会在就绪后写入连接文件；无需为每条命令再次运行 EXE。正常关闭会删除此文件；重启后重新读取。
+W 是正在编辑的工程工作区，R 默认位于 `W/.runtime/pixelforge-desktop`。从固定便携目录双击启动时，W 默认是 EXE 旁的 `workspace`；指定过 `--workspace` 或 `--runtime` 时沿用指定位置。已有会话直接读取 `R/commands.json`，核对其中的工作区和会话目录，再用会话地址和凭据连接。`project info` 返回当前实例的软件和公开命令版本。首次启动或进程已退出时才需要下面的启动步骤；重启后重新读取连接文件。
 
 ```powershell
-# 首次启动。把路径换成实际软件、项目和会话目录。
-$pf = '<技能目录>/runtime/windows-x64/PixForgeNative.exe'
+# 首次启动。使用项目指定的固定 EXE；没有固定安装时使用技能随包的 EXE。
+$pf = '<固定安装目录>/PixForgeNative.exe'
 $W = '<消费项目绝对路径>'
 $R = Join-Path $W '.runtime/pixelforge-desktop'
 $p = Start-Process -FilePath $pf -WindowStyle Hidden -PassThru -ArgumentList ('serve --workspace "{0}" --runtime "{1}"' -f $W,$R)

@@ -1,7 +1,6 @@
 """Application-owned Forge 1.20.1 code/resource adapter. Never deploys to a mod."""
 from copy import deepcopy
 import base64
-import io
 import json
 import math
 from pathlib import Path
@@ -12,7 +11,7 @@ from PIL import Image
 
 from .document import StudioError
 from .minecraft_resources import encode, digest
-from .minecraft_target import namespace, resource_id, location
+from .minecraft_target import resource_id, location
 from .image_bytes import png
 
 SCHEMA = "pixforge.forge-runtime/v1"

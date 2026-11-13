@@ -111,12 +111,12 @@ struct RpcResult {uint64_t id;J value;double ms;};
 class Rpc {
     struct Task{uint64_t id;J payload;};std::deque<Task> tasks;std::mutex mutex;std::condition_variable wake;std::thread worker;bool closing=false;std::atomic<int> pending{0};uint64_t sequence=0;HWND window;fs::path runtime;
 public:
-    std::map<uint64_t,std::function<void(const J&)>> callbacks;std::function<void(const J&)> onError;double lastMs=0;uint64_t count=0;
+    std::map<uint64_t,std::function<void(J&)>> callbacks;std::function<void(const J&)> onError;double lastMs=0;uint64_t count=0;
     Rpc(HWND hwnd,fs::path root):window(hwnd),runtime(std::move(root)){
         worker=std::thread([this]{for(;;){Task task;{std::unique_lock<std::mutex> lock(mutex);wake.wait(lock,[&]{return closing||!tasks.empty();});if(closing)break;task=std::move(tasks.front());tasks.pop_front();}double started=milliseconds();J value;try{value=httpCall(runtime,task.payload);}catch(std::exception& e){value=J::object({{"error",e.what()},{"code","SESSION_UNAVAILABLE"}});}auto result=new RpcResult{task.id,std::move(value),milliseconds()-started};--pending;if(!PostMessageW(window,WM_RPC,0,LPARAM(result)))delete result;}});
     }
     ~Rpc(){{std::lock_guard<std::mutex> lock(mutex);closing=true;tasks.clear();}wake.notify_all();if(worker.joinable())worker.join();}
-    void call(J payload,std::function<void(const J&)> callback={},bool quiet=false){uint64_t id=++sequence;callbacks[id]=[this,callback,quiet](const J& response){if(response.contains("error")){if(!quiet&&onError)onError(response);else if(quiet&&callback)callback(response);return;}if(callback)callback(response);};{std::lock_guard<std::mutex> lock(mutex);tasks.push_back({id,std::move(payload)});++pending;}wake.notify_one();}
+    void call(J payload,std::function<void(J&)> callback={},bool quiet=false){uint64_t id=++sequence;callbacks[id]=[this,callback=std::move(callback),quiet](J& response){if(response.contains("error")){if(!quiet&&onError)onError(response);else if(quiet&&callback)callback(response);return;}if(callback)callback(response);};{std::lock_guard<std::mutex> lock(mutex);tasks.push_back({id,std::move(payload)});++pending;}wake.notify_one();}
     bool idle()const{return pending==0;}
     void complete(RpcResult* raw){std::unique_ptr<RpcResult> result(raw);lastMs=result->ms;++count;auto it=callbacks.find(result->id);if(it!=callbacks.end()){auto callback=std::move(it->second);callbacks.erase(it);callback(result->value);}}
 };

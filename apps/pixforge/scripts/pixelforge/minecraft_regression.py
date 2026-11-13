@@ -1,6 +1,4 @@
 """Generate opt-in game fixtures and compare actual capture directories, never launch a game."""
-from copy import deepcopy
-import hashlib
 import json
 import math
 from pathlib import Path

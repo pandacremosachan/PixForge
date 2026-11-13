@@ -3,15 +3,13 @@
 Does not parse .mcmeta, .pxo, .bbmodel or engine metadata; never invents runtime timing.
 """
 
-import base64
 import hashlib
-import io
 import json
 import math
 from pathlib import Path
 
-from PIL import Image
 
+from .image_bytes import png_base64
 from .texture_review import comparison_image, image_comparison, image_geometry, load_png
 
 
@@ -179,15 +177,6 @@ Promise.all(p.images.map(url=>new Promise((resolve,reject)=>{const im=new Image(
 def player_html(report, frames, scale=6):
     if type(scale) is not int or not 1 <= scale <= 16:
         raise ValueError("player scale must be an integer in 1..16")
-    urls = []
-    for frame in frames:
-        buffer = io.BytesIO()
-        frame.save(buffer, format="PNG")
-        urls.append("data:image/png;base64," + base64.b64encode(buffer.getvalue()).decode("ascii"))
+    urls = ["data:image/png;base64," + png_base64(frame) for frame in frames]
     payload = json.dumps({**report, "images": urls, "scale": scale}, ensure_ascii=False).replace("<", "\\u003c")
     return HTML.replace("__PAYLOAD__", payload)
-
-
-def save_player(report, frames, path, scale):
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(player_html(report, frames, scale), encoding="utf-8", newline="\n")

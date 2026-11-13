@@ -106,6 +106,8 @@ def describe(model, frame_size):
             group["face_ids"].append(face_id)
             group["face_count"] += 1
     result["shared_region_count"] = sum(g["face_count"] > 1 for g in result["regions"])
+    from .player_skin import describe_atlas
+    describe_atlas(model, result)
     return result
 
 

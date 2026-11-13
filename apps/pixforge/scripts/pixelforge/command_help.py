@@ -10,9 +10,9 @@ def types(schema):
     return found
 
 
-def root_help():
+def root_help(application):
     return {
-        'application': 'PixForge', 'version': '4.2.3', 'public_api_version': 4,
+        **{key: application[key] for key in ('application', 'version', 'public_api_version')},
         'usage': 'PixForgeNative.exe serve [--workspace DIR --runtime DIR] | GROUP ACTION [OPTIONS]', 'groups': PURPOSES,
         'options': {
             '--workspace DIR': 'Project workspace; defaults to the current directory.',

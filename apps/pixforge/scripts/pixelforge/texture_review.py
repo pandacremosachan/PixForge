@@ -2,7 +2,6 @@
 
 from collections import Counter
 import json
-from pathlib import Path
 import re
 
 from PIL import Image, ImageChops, ImageDraw, ImageStat
@@ -68,28 +67,6 @@ def preserved_pixels(image, before, mask):
             "note": "Full source coordinates, regardless of --region. Alpha 255 protects RGBA; alpha 0 allows edits. Hidden RGB at alpha 0 is ignored."}
 
 
-def comparison(left, right, space="rgba", alpha_cutoff=0):
-    if len(left) != len(right):
-        raise ValueError("pixel comparisons require equal pixel counts")
-    if space == "alpha":
-        left, right = [(p[3],) for p in left], [(p[3],) for p in right]
-    elif space == "silhouette":
-        left, right = [(int(p[3] > alpha_cutoff),) for p in left], [(int(p[3] > alpha_cutoff),) for p in right]
-    pairs = list(zip(left, right))
-    matches = sum(a == b for a, b in pairs)
-    channels = 4 if space == "rgba" else 1
-    delta_key = {"rgba": "mean_rgba_delta", "alpha": "mean_alpha_delta", "silhouette": "mean_silhouette_delta"}[space]
-    return {
-        "equal_pixels": matches,
-        "total_pixels": len(pairs),
-        "exact": matches == len(pairs),
-        "match_percent": round(100 * matches / len(pairs), 3) if pairs else None,
-        delta_key:
-            round(sum(abs(a[c] - b[c]) for a, b in pairs for c in range(channels)) /
-                  (channels * len(pairs)), 3) if pairs else None,
-    }
-
-
 def comparison_image(image, space="rgba", alpha_cutoff=0):
     """Prepare once, then compare/transform with Pillow's native pixel operations."""
     alpha = image.getchannel("A")
@@ -105,7 +82,7 @@ def comparison_image(image, space="rgba", alpha_cutoff=0):
 
 
 def image_comparison(left, right, space="rgba"):
-    """Same metrics as comparison(); inputs are prepared RGBA or L images."""
+    """Compare prepared RGBA or L images, including every channel."""
     if left.size != right.size or left.mode != right.mode:
         raise ValueError("image comparisons require equal dimensions and channel modes")
     total = left.width * left.height
@@ -146,44 +123,6 @@ def image_tile_metrics(image):
             image.crop((0, 0, width - 1, height)), image.crop((1, 0, width, height)))["mean_rgba_delta"] if width > 1 else None,
         "vertical_interior_mean_rgba_delta": image_comparison(
             image.crop((0, 0, width, height - 1)), image.crop((0, 1, width, height)))["mean_rgba_delta"] if height > 1 else None,
-    }
-
-
-def alpha_metrics(pixels):
-    total = len(pixels)
-    return {"transparent_percent": sum(p[3] == 0 for p in pixels) / total * 100,
-            "semi_transparent_percent": sum(0 < p[3] < 255 for p in pixels) / total * 100,
-            "opaque_percent": sum(p[3] == 255 for p in pixels) / total * 100}
-
-
-def visible_geometry(pixels, width, height, cutoff):
-    positions = [index for index, pixel in enumerate(pixels) if pixel[3] > cutoff]
-    bbox, center, edges = None, None, []
-    if positions:
-        xs, ys = [p % width for p in positions], [p // width for p in positions]
-        left, top, right, bottom = min(xs), min(ys), max(xs) + 1, max(ys) + 1
-        bbox = [left, top, right, bottom]
-        center = [(left + right - 1) / 2, (top + bottom - 1) / 2]
-        edges = [name for name, touched in (("left", left == 0), ("top", top == 0),
-                                           ("right", right == width), ("bottom", bottom == height)) if touched]
-    return {"alpha_cutoff": cutoff, "visible_pixels": len(positions),
-            "coverage_percent": 100 * len(positions) / len(pixels), "bbox": bbox, "bbox_center": center,
-            "touches_edges": edges,
-            "note": "Local pixel coordinates; right/bottom bounds exclusive. Edge contact and center shifts are not failures by themselves. This threshold does not change the PNG or renderer."}
-
-
-def tile_metrics(pixels, width, height):
-    lr = comparison([pixels[y * width] for y in range(height)],
-                    [pixels[y * width + width - 1] for y in range(height)])
-    ud = comparison(pixels[:width], pixels[-width:])
-    horizontal = comparison([pixels[y * width + x] for y in range(height) for x in range(width - 1)],
-                            [pixels[y * width + x + 1] for y in range(height) for x in range(width - 1)])
-    vertical = comparison(pixels[:-width], pixels[width:])
-    return {
-        "left_right_edges": lr,
-        "top_bottom_edges": ud,
-        "horizontal_interior_mean_rgba_delta": horizontal["mean_rgba_delta"],
-        "vertical_interior_mean_rgba_delta": vertical["mean_rgba_delta"],
     }
 
 

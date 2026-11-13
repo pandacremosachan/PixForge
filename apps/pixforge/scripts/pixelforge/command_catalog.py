@@ -7,11 +7,11 @@ CATALOG = {
         "undo": "undo", "redo": "redo", "note": "add_project_note",
         "recover": "create_recovery_copy", "shutdown": "shutdown_session",
     },
-    "canvas": {"draw": "draw", "validate": "validate", "read": "read", "preview": "preview"},
+    "canvas": {"draw": "draw", "resize": "resize_canvas", "validate": "validate", "read": "read", "preview": "preview"},
     "model": {
         "uv": "model_uv", "import": "import_block_model", "shapes": "configure_shapes",
         "edit_shapes": "edit_shapes", "build_shapes": "build_shapes", "optimize_shapes": "optimize_shapes",
-        "preview": "preview_shapes",
+        "preview": "preview_shapes", "edit_rig": "edit_player_rig", "inspect_rig":"inspect_player_rig",
     },
     "animation": {
         "capabilities": "animation_capabilities", "prepare_frames": "prepare_animation_frames",
@@ -36,7 +36,7 @@ CATALOG = {
     "asset": {
         "inspect": "inspect_texture", "playback": "preview_texture_animation", "batch": "run_offline_batch",
         "approve": "approve_export", "export_png": "export_current", "export_shapes": "export_shapes",
-        "export_minecraft": "export_minecraft_resources",
+        "export_minecraft": "export_minecraft_resources", "export_rig":"export_player_rig",
     },
 }
 

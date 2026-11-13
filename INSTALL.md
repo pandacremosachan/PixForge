@@ -2,7 +2,7 @@
 
 [中文目录说明](.agents/skills/pixelforge/INSTALL.md)
 
-Download the [Windows x64 skill ZIP](https://github.com/pandacremosachan/PixForge/releases/download/v4.2.3/PixForge-Skill-3.2.3-Windows-x64.zip) and extract it. The ready-to-use payload is the `pixelforge` folder containing `SKILL.md`, `assets/`, `references/` and `runtime/windows-x64/PixForgeNative.exe`.
+Download the [Windows x64 skill ZIP](https://github.com/pandacremosachan/PixForge/releases/download/v4.12.1/PixForge-Skill-3.9.1-Windows-x64.zip) and extract it. The ready-to-use payload is the `pixelforge` folder containing `SKILL.md`, `assets/`, `references/` and `runtime/windows-x64/PixForgeNative.exe`.
 
 Move or copy that folder to **one** of these locations:
 
@@ -13,4 +13,4 @@ Move or copy that folder to **one** of these locations:
 
 If you set `CODEX_HOME`, use `<CODEX_HOME>/skills/pixelforge/` for the user-wide location. A directory junction to a maintained copy of the complete skill folder works in either location.
 
-Open the project and invoke `$pixelforge`. The same folder works in both scopes; each project uses its own workspace and session. The Git checkout contains the sources. The [release](https://github.com/pandacremosachan/PixForge/releases/tag/v4.2.3) includes the built runtime.
+Open the project and invoke `$pixelforge`. The same folder works in both scopes; each project uses its own workspace and session. The Git checkout contains the sources. The [release](https://github.com/pandacremosachan/PixForge/releases/tag/v4.12.1) includes the built runtime.

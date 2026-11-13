@@ -1,4 +1,4 @@
 interface:
   display_name: "PixForge 像素材质"
-  short_description: "通过共享工作台命令制作像素画、Minecraft 材质、模型与动画"
+  short_description: "在共享工作台制作原版皮肤、Blockbench / YSM 骨骼角色、像素材质与动画"
   default_prompt: "使用 $pixelforge，通过工作台程序的命令制作素材，按需查询帮助，复用当前工程并展示、保存和交付结果。"

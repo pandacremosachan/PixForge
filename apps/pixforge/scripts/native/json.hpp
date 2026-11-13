@@ -48,6 +48,7 @@ struct Json {
     const Array& arr() const { return std::get<Array>(v); }
     Array& arr() { return std::get<Array>(v); }
     std::string str(std::string fallback = "") const { return isString() ? std::get<std::string>(v) : fallback; }
+    const std::string& stringRef() const { return std::get<std::string>(v); }
     double number(double fallback = 0) const { return isNumber() ? std::get<double>(v) : fallback; }
     int integer(int fallback = 0) const { auto n = number(fallback); if (n < -2147483648. || n > 2147483647. || n != std::floor(n)) throw std::runtime_error("Expected bounded integer"); return int(n); }
     bool boolean(bool fallback = false) const { return isBool() ? std::get<bool>(v) : fallback; }
@@ -66,19 +67,23 @@ struct Json {
         else if(c<0x10000) {s+=char(0xe0|(c>>12));s+=char(0x80|((c>>6)&63));s+=char(0x80|(c&63));}
         else {s+=char(0xf0|(c>>18));s+=char(0x80|((c>>12)&63));s+=char(0x80|((c>>6)&63));s+=char(0x80|(c&63));}
     }
-    static std::string quote(const std::string& s) {
-        std::string out="\"";
+    static void appendQuoted(std::string& out,const std::string& s) {
+        out+='"';
         for(unsigned char c:s) {switch(c) {case '"':out+="\\\"";break;case '\\':out+="\\\\";break;case '\b':out+="\\b";break;case '\f':out+="\\f";break;case '\n':out+="\\n";break;case '\r':out+="\\r";break;case '\t':out+="\\t";break;default:if(c<32){char b[8];std::snprintf(b,sizeof b,"\\u%04x",c);out+=b;}else out+=char(c);}}
-        return out+'"';
+        out+='"';
     }
+    static std::string quote(const std::string& s) {std::string out;appendQuoted(out,s);return out;}
     std::string dump() const {
-        if(null())return "null"; if(isBool())return boolean()?"true":"false";
-        if(isNumber()){char b[64];std::snprintf(b,sizeof b,"%.17g",number());return b;}
-        if(isString())return quote(str());
-        std::string s=isArray()?"[":"{";bool first=true;
-        if(isArray())for(auto& x:arr()){if(!first)s+=',';first=false;s+=x.dump();}
-        else for(auto& [k,x]:obj()){if(!first)s+=',';first=false;s+=quote(k)+':'+x.dump();}
-        return s+(isArray()?"]":"}");
+        std::string out;appendTo(out);return out;
+    }
+    void appendTo(std::string& out) const {
+        if(null()){out+="null";return;} if(isBool()){out+=boolean()?"true":"false";return;}
+        if(isNumber()){char b[64];std::snprintf(b,sizeof b,"%.17g",number());out+=b;return;}
+        if(isString()){appendQuoted(out,stringRef());return;}
+        bool list=isArray(),first=true;out+=list?'[':'{';
+        if(list)for(const auto& x:arr()){if(!first)out+=',';first=false;x.appendTo(out);}
+        else for(const auto& [k,x]:obj()){if(!first)out+=',';first=false;appendQuoted(out,k);out+=':';x.appendTo(out);}
+        out+=list?']':'}';
     }
     struct Parser;
     static Json parse(const std::string& s);
@@ -89,16 +94,27 @@ struct Json::Parser {
     void ws(){while(p<s.size()&&(s[p]==' '||s[p]=='\n'||s[p]=='\r'||s[p]=='\t'))++p;}
     bool eat(char c){ws();if(p<s.size()&&s[p]==c){++p;return true;}return false;}
     unsigned hex(){if(p+4>s.size())fail();unsigned x=0;for(int n=0;n<4;++n){char c=s[p++];x<<=4;if(c>='0'&&c<='9')x+=c-'0';else if(c>='a'&&c<='f')x+=10+c-'a';else if(c>='A'&&c<='F')x+=10+c-'A';else fail();}return x;}
-    std::string string(){if(!eat('"'))fail();std::string out;while(p<s.size()){unsigned char c=s[p++];if(c=='"')return out;if(c<32)fail();if(c!='\\'){out+=char(c);continue;}if(p==s.size())fail();switch(s[p++]){case '"':out+='"';break;case '\\':out+='\\';break;case '/':out+='/';break;case 'b':out+='\b';break;case 'f':out+='\f';break;case 'n':out+='\n';break;case 'r':out+='\r';break;case 't':out+='\t';break;case 'u':{unsigned x=hex();if(x>=0xd800&&x<=0xdbff){if(p+2>s.size()||s[p++]!='\\'||s[p++]!='u')fail();auto low=hex();if(low<0xdc00||low>0xdfff)fail();x=0x10000+((x-0xd800)<<10)+(low-0xdc00);}else if(x>=0xdc00&&x<=0xdfff)fail();utf8(out,x);break;}default:fail();}}fail();}
+    std::string string(){
+        if(!eat('"'))fail();std::string out;
+        for(;;){
+            size_t start=p;
+            while(p<s.size()&&s[p]!='"'&&s[p]!='\\'&&static_cast<unsigned char>(s[p])>=32)++p;
+            out.append(s,start,p-start);
+            if(p==s.size())fail();char c=s[p++];if(c=='"')return out;if(c!='\\'||p==s.size())fail();
+            switch(s[p++]){case '"':out+='"';break;case '\\':out+='\\';break;case '/':out+='/';break;case 'b':out+='\b';break;case 'f':out+='\f';break;case 'n':out+='\n';break;case 'r':out+='\r';break;case 't':out+='\t';break;case 'u':{unsigned x=hex();if(x>=0xd800&&x<=0xdbff){if(p+2>s.size()||s[p++]!='\\'||s[p++]!='u')fail();auto low=hex();if(low<0xdc00||low>0xdfff)fail();x=0x10000+((x-0xd800)<<10)+(low-0xdc00);}else if(x>=0xdc00&&x<=0xdfff)fail();utf8(out,x);break;}default:fail();}
+        }
+    }
     Json value(int depth=0){if(depth>80)fail();ws();if(p==s.size())fail();char c=s[p];
         if(c=='"')return string();
-        if(eat('{')){Object obj;if(eat('}'))return obj;do{auto k=string();if(!eat(':')||obj.count(k))fail();obj[k]=value(depth+1);}while(eat(','));if(!eat('}'))fail();return obj;}
+        if(eat('{')){Object obj;if(eat('}'))return obj;do{auto k=string();if(!eat(':'))fail();auto [it,inserted]=obj.try_emplace(std::move(k));if(!inserted)fail();it->second=value(depth+1);}while(eat(','));if(!eat('}'))fail();return obj;}
         if(eat('[')){Array a;if(eat(']'))return a;do{a.push_back(value(depth+1));}while(eat(','));if(!eat(']'))fail();return a;}
-        for(auto [word,literal]:{std::pair<const char*,Json>{"true",true},{"false",false},{"null",nullptr}}){size_t n=std::char_traits<char>::length(word);if(s.compare(p,n,word)==0){p+=n;return literal;}}
+        if(c=='t'&&s.compare(p,4,"true")==0){p+=4;return true;}
+        if(c=='f'&&s.compare(p,5,"false")==0){p+=5;return false;}
+        if(c=='n'&&s.compare(p,4,"null")==0){p+=4;return nullptr;}
         size_t start=p;if(s[p]=='-')++p;if(p==s.size())fail();if(s[p]=='0')++p;else{if(s[p]<'1'||s[p]>'9')fail();while(p<s.size()&&s[p]>='0'&&s[p]<='9')++p;}
         if(p<s.size()&&s[p]=='.'){++p;auto q=p;while(p<s.size()&&s[p]>='0'&&s[p]<='9')++p;if(p==q)fail();}
         if(p<s.size()&&(s[p]=='e'||s[p]=='E')){++p;if(p<s.size()&&(s[p]=='+'||s[p]=='-'))++p;auto q=p;while(p<s.size()&&s[p]>='0'&&s[p]<='9')++p;if(p==q)fail();}
-        char* end=nullptr;auto token=s.substr(start,p-start);double n=std::strtod(token.c_str(),&end);if(!std::isfinite(n)||*end)fail();return n;
+        char* end=nullptr;double n=std::strtod(s.c_str()+start,&end);if(!std::isfinite(n)||end!=s.c_str()+p)fail();return n;
     }
 };
 inline Json Json::parse(const std::string& s){if(s.size()>128*1024*1024)throw std::runtime_error("JSON too large");Parser p{s};auto result=p.value();p.ws();if(p.p!=s.size())p.fail();return result;}

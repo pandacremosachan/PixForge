@@ -6,7 +6,6 @@ Approximation may fill air within an explicit Euclidean error bound, never remov
 source volume. Model distance is measured against the original oriented cuboids.
 """
 from bisect import bisect_left, bisect_right
-from copy import deepcopy
 from itertools import permutations, product
 import math
 

@@ -1,12 +1,12 @@
 {
   "schema": "pixforge.skill-workflows/v1",
-  "skill_version": "3.2.3",
-  "software_baseline": "4.2.3",
+  "skill_version": "3.9.1",
+  "software_baseline": "4.12.1",
   "public_api_version": 4,
   "recipes": [
     {
       "id": "block-shared",
-      "description": "六面共用的普通方块",
+      "description": "一个可建模的方块，六面共用贴图",
       "workflow": "references/workflows/block.md",
       "template": "assets/templates/block-shared",
       "capabilities": [
@@ -20,7 +20,7 @@
     },
     {
       "id": "block-faces",
-      "description": "六面独立的普通方块",
+      "description": "一个可建模的方块，六面分别绘制",
       "workflow": "references/workflows/block.md",
       "template": "assets/templates/block-faces",
       "capabilities": [
@@ -49,6 +49,50 @@
       "example_dimensions": [
         16,
         16
+      ]
+    },
+    {
+      "id": "player-skin",
+      "description": "64×64 玩家皮肤，含宽臂与细臂人体、独立左右肢体与外层",
+      "workflow": "references/workflows/player-skin.md",
+      "template": "assets/templates/player-skin",
+      "variants": {
+        "classic": "assets/templates/player-skin/classic",
+        "slim": "assets/templates/player-skin/slim"
+      },
+      "capabilities": [
+        "minecraft-player-skin/v1",
+        "minecraft-player-skin-atlas/v1"
+      ],
+      "preset": "player_skin",
+      "example_dimensions": [
+        64,
+        64
+      ],
+      "atlas_guide": "assets/templates/player-skin/atlas-guide.png"
+    },
+    {
+      "id": "component-model",
+      "description": "原有命令模板：一个可编辑部件和 64×64 图集",
+      "workflow": "references/workflows/rig-components.md",
+      "template": "assets/templates/component-model",
+      "capabilities": ["rig-component-edit/v1"],
+      "preset": "component_model",
+      "example_dimensions": [64, 64]
+    },
+    {
+      "id": "player-rig",
+      "description": "多选方块与成组变换、逐面 UV 拖拽、多贴图、动作和曲线；往返 Bedrock .bbmodel 和导出 YSM 模型包",
+      "workflow": "references/workflows/player-rig.md",
+      "template": "assets/templates/player-rig",
+      "capabilities": [
+        "blockbench-player-rig/v2",
+        "rig-component-edit/v1"
+      ],
+      "preset": "player_rig",
+      "example_dimensions": [
+        128,
+        128
       ]
     },
     {

@@ -6,7 +6,7 @@ from types import SimpleNamespace
 import uuid
 
 from .document import Document, StudioError, playback
-from .session import image_data
+from .image_bytes import png_base64
 from .transactions import commit_files
 from . import texture_review as review
 
@@ -107,7 +107,7 @@ def inspect_texture(path, options=None):
                 report["failed_requirements"].append("保护区域发生变化")
                 report["constraints_passed"] = False
         picture = review.preview_sheet(image, None, args.scale, args.tile, before, args.backgrounds, args.display_size)
-    result = {"report": report, "image": image_data(picture), "inputs": [str(p) for p in inputs]}
+    result = {"report": report, "image": png_base64(picture), "inputs": [str(p) for p in inputs]}
     if html is not None:
         result["html"] = html
     return result
@@ -148,7 +148,7 @@ def offline_batch(commands, workspace, *, dry_run=True, project_path=None, scale
     from .protocol import Executor
     result = Executor().run_batch(commands, dry_run=True, publish_outputs=False, include_preview=True,
         preview_options={"scale": scale, "tile": tile, "backgrounds": backgrounds or ["checker"]})
-    response = {"batch": result.summary, "messages": result.messages, "image": image_data(result.preview)}
+    response = {"batch": result.summary, "messages": result.messages, "image": png_base64(result.preview)}
     response["batch"]["dry_run"] = dry_run
     if not dry_run:
         if project_path is None or Path(project_path).suffix.lower() != ".pixforge":

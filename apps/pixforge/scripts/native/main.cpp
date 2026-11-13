@@ -24,7 +24,7 @@ static bool commandMode(const std::vector<std::wstring>& arguments) {
         } else {
             auto extension = fs::path(value).extension().wstring();
             std::transform(extension.begin(), extension.end(), extension.begin(), [](wchar_t c) { return wchar_t(towlower(c)); });
-            if (extension != L".pixforge" && extension != L".png") return true;
+            if (extension != L".bbmodel" && extension != L".pixforge" && extension != L".png") return true;
         }
     }
     return false;
@@ -52,7 +52,7 @@ static WindowOptions firstWindow;
 
 static void showWindow(const pf::fs::path& workspace, const pf::fs::path& runtime, const WindowOptions& opts) {
     using namespace pf;
-    App app(workspace, runtime, opts.count(L"--open") ? pathText(fs::absolute(opts.at(L"--open"))) : "");
+    App app(workspace, runtime, opts.count(L"--open") ? pathText(fs::absolute(opts.at(L"--open"))) : "",opts.count(L"start-page")!=0);
     if (opts.count(L"--open-material-editor"))
         app.userActions.push_back([&app] { openMaterialEditor(app); });
     if (opts.count(L"--open-minecraft-workbench"))
@@ -103,20 +103,39 @@ int wmain(int argc, wchar_t* argv[]) {
     std::vector<std::wstring> raw;
     for (int i = 1; i < argc; ++i) raw.emplace_back(argv[i]);
     bool publicCommand = commandMode(raw);
+    bool resident = !raw.empty() && raw.front() == L"serve";
+    bool frameJob = raw.size()==3 && (raw[0]==L"--render-player-frame"||raw[0]==L"--sample-player-frame");
+    if(publicCommand&&!resident&&!frameJob)return runNativeCommand(raw);
     if (!publicCommand) FreeConsole();
-    SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
-    INITCOMMONCONTROLSEX common{sizeof common, ICC_STANDARD_CLASSES | ICC_WIN95_CLASSES};
-    InitCommonControlsEx(&common);
-    CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED);
-    Gdiplus::GdiplusStartupInput input;
+    if(!frameJob){
+        SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
+        INITCOMMONCONTROLSEX common{sizeof common, ICC_STANDARD_CLASSES | ICC_WIN95_CLASSES};
+        InitCommonControlsEx(&common);
+    }
+    bool graphics = !frameJob || raw[0]==L"--render-player-frame";
+    HRESULT com=E_FAIL;
     ULONG_PTR gdip = 0;
-    Gdiplus::GdiplusStartup(&gdip, &input, nullptr);
+    if(graphics){
+        com=CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED);
+        Gdiplus::GdiplusStartupInput settings;Gdiplus::GdiplusStartup(&gdip,&settings,nullptr);
+    }
     int code = 0;
     try {
-        if (!raw.empty() && raw.front() == L"serve") {
+        if (frameJob) {
+            auto job=readJson(raw[1]);const J& input=job;RigVisual model;
+            auto ms=input["time_ms"].number();auto loop=input["loop"].boolean();
+            if(raw[0]==L"--sample-player-frame"){
+                model.loadSkeleton(input["model"]);job.obj().erase("model");model.poseSkeleton(input["tracks"],ms/1000.,loop);
+                writeFile(fs::path(raw[2]),model.sample(ms,input["clip"].str()).dump());
+            }else {
+                model.load(input["model"]);job.obj().erase("model");model.pose(input["tracks"],ms/1000.,loop,input["texture"].integer(-1));
+                const J& a=input["atlas"];auto image=Image::decode(a["w"].integer(),a["h"].integer(),a["data"].stringRef());job.obj().erase("atlas");
+                std::vector<std::string> overlays;if(input["overlays"].isArray())for(const auto& name:input["overlays"].arr())overlays.push_back(name.str());
+                auto frame=model.draw(image,input["size"].integer(),input["yaw"].number(),input["pitch"].number(),input["zoom"].number(1),false,input["show_model"].boolean(true),input["shapes"],overlays);
+                if(!savePng(frame,fs::path(raw[2])))throw std::runtime_error("无法保存角色预览");
+            }
+        } else if (resident) {
             code = runResident(raw);
-        } else if (publicCommand) {
-            code = runNativeCommand(raw);
         } else {
             std::map<std::wstring, std::wstring> args;
             for (size_t i = 0; i < raw.size(); ++i) {
@@ -137,19 +156,24 @@ int wmain(int argc, wchar_t* argv[]) {
                 fs::path workspace = args.count(L"--workspace") ? fs::path(args[L"--workspace"]) : coreInstallation().defaultWorkspace;
                 workspace = fs::absolute(workspace);
                 fs::path runtime = args.count(L"--runtime") ? fs::path(args[L"--runtime"]) : workspace / L".runtime" / L"pixelforge-desktop";
+                bool home=!args.count(L"--open")&&!args.count(L"--open-material-editor")&&!args.count(L"--open-minecraft-workbench")&&!args.count(L"--open-minecraft-preview");
                 bool running = false;
                 try {
                     running = httpCall(runtime, J::object({{"action", "status"}})).contains("document_id");
                 } catch (...) {}
                 if (!running) {
                     firstWindow = args;
+                    if(home)firstWindow[L"start-page"]=L"true";
                     for (const auto key : {L"--open", L"--open-minecraft-preview"})
                         if (firstWindow.count(key)) firstWindow[key] = fs::absolute(firstWindow[key]).wstring();
                     code = runResident({L"serve", L"--workspace", workspace.wstring(), L"--runtime", runtime.wstring(), L"--workbench"});
-                } else if (fs::exists(runtime / L"commands.json") && !args.count(L"--open") &&
-                           !args.count(L"--open-material-editor") && !args.count(L"--open-minecraft-workbench") && !args.count(L"--open-minecraft-preview")) {
+                } else if (fs::exists(runtime / L"commands.json") && (home||args.count(L"--open"))) {
                     auto result = httpCall(runtime, J::object({{"action", "_command"}, {"group", "workbench"}, {"command", "open"}, {"params", J::object()}}));
                     if (!result["ok"].boolean()) throw std::runtime_error(result["error"].str());
+                    auto intent=J::object({{"action","desktop_launch"},{"from_editor",result["reused"].boolean()}});
+                    if(args.count(L"--open"))intent["path"]=pathText(fs::absolute(args[L"--open"]));
+                    auto reply=httpCall(runtime/L"gui",intent);
+                    if(reply.contains("error"))throw std::runtime_error(reply["error"].str());
                 } else {
                     bool reused = false;
                     try { reused = !httpCall(runtime / L"gui", J::object({{"action", "focus"}})).contains("error"); } catch (...) {}
@@ -162,7 +186,7 @@ int wmain(int argc, wchar_t* argv[]) {
         if (!publicCommand) MessageBoxW(nullptr, wide(error.what()).c_str(), L"PixForge C++", MB_ICONERROR);
         code = 1;
     }
-    Gdiplus::GdiplusShutdown(gdip);
-    CoUninitialize();
+    if(gdip)Gdiplus::GdiplusShutdown(gdip);
+    if(SUCCEEDED(com))CoUninitialize();
     return code;
 }

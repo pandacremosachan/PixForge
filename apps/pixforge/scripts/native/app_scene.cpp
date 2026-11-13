@@ -1,13 +1,14 @@
 #include "app.hpp"
 
 namespace pf {
-double App::sceneClock()const{return scenePlayer?scenePlayer->clock():state["scene_animation"].null()?elapsed:sceneTime(state["scene_animation"],elapsed);}
-double App::sceneDuration()const{return scenePlayer?scenePlayer->duration():state["scene_animation"]["duration_ms"].number();}
+double App::sceneClock()const{return studio()?rigTime:scenePlayer?scenePlayer->clock():state["scene_animation"].null()?elapsed:sceneTime(state["scene_animation"],elapsed);}
+double App::sceneDuration()const{return studio()?rigEnd:scenePlayer?scenePlayer->duration():state["scene_animation"]["duration_ms"].number();}
 void App::resetScenePlayer(){
     scenePlayer.reset();if(sceneProgram(state["scene_animation"]))scenePlayer=std::make_unique<ScenePlayer>(state["scene_animation"]);elapsed=0;playStart=milliseconds();syncStateControls(true);
 }
 void App::syncStateControls(bool rebuild){
     if(!sceneStateCombo)return;
+    if(studio()){int i=0;for(const auto& a:playerRig()["clips"].arr()){if(a["name"].str()==rigClip){comboSet(sceneStateCombo,i);break;}++i;}syncPlayback();return;}
     const auto& states=static_cast<const J&>(state)["scene_animation"]["states"];int index=-1;
     if(scenePlayer){
         if(scenePlayer->sequenceMode)index=int(states.size());

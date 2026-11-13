@@ -14,19 +14,65 @@ void App::inspectUvPixel(int x,int y,bool pin){
 }
 J App::uvStatus()const{
     J regions=J::array(),faces=J::array();for(int i:uvHits){auto& group=modelUv["regions"][i];regions.arr().push_back(group["id"]);for(auto& id:group["face_ids"].arr())faces.arr().push_back(id);}
-    auto r=currentRect();return J::object({{"guides",uvGuides},{"canvas_labels",false},{"pinned",uvPinned},{"pixel",uvX>=0?J::array({uvX+r.x,uvY+r.y}):J()},{"region_ids",regions},{"face_ids",faces},{"face_count",int(modelUv["faces"].size())},{"region_count",int(modelUv["regions"].size())},{"shared_region_count",modelUv["shared_region_count"]},{"direction_space","element-local"},{"pixels_modified",false}});
+    auto r=currentRect();J result=J::object({{"guides",uvGuides},{"canvas_labels",playerSkin()&&uvGuides&&inspectorTab==2&&panel==0},{"pinned",uvPinned},{"pixel",uvX>=0?J::array({uvX+r.x,uvY+r.y}):J()},{"region_ids",regions},{"face_ids",faces},{"face_count",int(modelUv["faces"].size())},{"region_count",int(modelUv["regions"].size())},{"shared_region_count",modelUv["shared_region_count"]},{"direction_space","element-local"},{"pixels_modified",false}});
+    if(playerSkin()){
+        result["arm_model"]=modelUv["player_skin"]["arm_model"];
+        if(!uvHits.empty()){
+            const auto& region=modelUv["regions"][uvHits.front()];
+            if(region.contains("skin_face_index"))result["skin"]=modelUv["faces"][region["skin_face_index"].integer()]["skin"];
+        }
+    }
+    return result;
 }
 void App::paintUvGuides(HDC dc,RECT area,double ox,double oy,int repeats){
     if(!uvGuides||modelUv["regions"].empty())return;auto f=currentRect();double fw=f.w*zoom,fh=f.h*zoom;int saved=SaveDC(dc);IntersectClipRect(dc,area.left,area.top,area.right,area.bottom);
     auto outline=[&](const J& group,bool active){for(int b=0;b<repeats;++b)for(int a=0;a<repeats;++a)for(auto& bounds:group["bounds"].arr()){
         int left=rounded(ox+a*fw+bounds[0].number()*zoom),top=rounded(oy+b*fh+bounds[1].number()*zoom),right=rounded(ox+a*fw+(bounds[0].number()+bounds[2].number())*zoom),bottom=rounded(oy+b*fh+(bounds[1].number()+bounds[3].number())*zoom);
         if(right<0||bottom<0||left>area.right||top>area.bottom)continue;right=pf::max(right,left+1);bottom=pf::max(bottom,top+1);auto c=active?RGB(255,210,103):RGB(114,139,169);int width=active?D(2):1;
+        if(group.contains("skin_face_index")){
+            const auto& hit=modelUv["faces"][group["skin_face_index"].integer()]["skin"];
+            auto partColor=rgb(color(modelUv["player_skin"]["parts"][hit["part"].str()]["guide_color"].str()));
+            if(!active)c=partColor;
+            // Show the labels only while inspecting the atlas. Editing with the
+            // palette open keeps the original pixels unobstructed.
+            if(inspectorTab==2&&right-left>=D(22)&&bottom-top>=D(22)){
+                int mx=(left+right)/2,my=(top+bottom)/2;RECT tag{mx-D(9),my-D(9),mx+D(9),my+D(9)};
+                bool outer=hit["layer"].str()=="outer";
+                fill(dc,tag,outer?RGB(45,48,55):partColor);
+                text(dc,wide(hit["short_label"].str()),tag,outer?partColor:RGB(29,32,37),DT_CENTER|DT_VCENTER|DT_SINGLELINE);
+            }
+        }
         line(dc,left,top,right,top,c,width);line(dc,left,top,left,bottom,c,width);line(dc,right,top,right,bottom,c,width);line(dc,left,bottom,right,bottom,c,width);
     }};
     for(auto& group:modelUv["regions"].arr())outline(group,false);for(int i:uvHits)outline(modelUv["regions"][i],true);
     RestoreDC(dc,saved);
 }
 void App::paintUvInspector(HDC dc,RECT area){
+    if(playerSkin()){
+        fill(dc,area,RGB(37,41,50));int w=area.right;
+        auto label=[&](const std::wstring& s,int y,int h,COLORREF c){text(dc,s,{D(10),y,w-D(7),y+h},c,DT_LEFT|DT_VCENTER|DT_SINGLELINE|DT_END_ELLIPSIS);};
+        const auto& atlas=static_cast<const J&>(modelUv)["player_skin"];
+        label(atlas["arm_model"].str()=="slim"?L"细臂皮肤 · Slim":L"宽臂皮肤 · Classic",D(4),D(26),RGB(231,235,245));
+        label(L"64 × 64  ·  手臂 "+std::to_wstring(atlas["arm_width"].integer())+L" px",D(31),D(24),RGB(178,191,211));
+        label(uvPinned?L"已固定 · 点击解除":L"悬停查看 · Ctrl+单击固定",D(57),D(24),uvPinned?RGB(255,215,125):RGB(192,202,216));
+        label(uvX>=0?L"像素 ("+std::to_wstring(uvX)+L", "+std::to_wstring(uvY)+L")":L"左右以穿着者自身为准",D(82),D(23),RGB(218,226,234));
+        label(L"实底字：基础层    深底字：外层",D(105),D(23),RGB(161,174,194));
+        line(dc,D(8),D(132),w-D(8),D(132),RGB(66,75,92));
+        int save=SaveDC(dc);IntersectClipRect(dc,0,D(136),w,area.bottom);int y=D(140)-uvScroll;
+        std::vector<int> groups=uvHits;
+        if(groups.empty()&&uvX<0)for(int i=0;i<int(modelUv["regions"].size());++i)groups.push_back(i);
+        if(groups.empty())label(L"未映射 · 不会显示在人体上",D(145),D(28),RGB(184,197,213));
+        for(int i:groups){
+            const auto& g=modelUv["regions"][i];if(!g.contains("skin_face_index"))continue;
+            const auto& hit=modelUv["faces"][g["skin_face_index"].integer()]["skin"];
+            const auto& p=atlas["parts"][hit["part"].str()];
+            label(wide(hit["label"].str()),y,D(23),uvPinned?RGB(255,216,128):rgb(color(p["guide_color"].str())));
+            label(uvBounds(g)+L" px",y+D(23),D(23),RGB(218,226,234));
+            label(hit["layer"].str()=="outer"?L"外层 · 透明时露出基础层":L"基础层 · 人体表面",y+D(47),D(23),RGB(155,168,187));
+            y+=D(79);
+        }
+        uvContentHeight=pf::max(0,y+uvScroll-D(136));RestoreDC(dc,save);return;
+    }
     fill(dc,area,RGB(37,41,50));int width=area.right;auto r=currentRect();text(dc,L"模型面域 / UV",{D(10),D(4),width-D(8),D(31)},RGB(226,230,245));
     std::wstring summary=L"模型 "+std::to_wstring(modelUv["faces"].size())+L" 面 · UV "+std::to_wstring(modelUv["regions"].size())+L" 区";text(dc,summary,{D(10),D(31),width-D(6),D(55)},RGB(172,185,207));
     if(modelUv["faces"].empty()){text(dc,L"载入带 UV 的模型后显示对应关系。\n仅凭 PNG 无法确定哪个区域属于哪个面。",{D(10),D(65),width-D(10),area.bottom},RGB(167,178,198),DT_LEFT|DT_TOP|DT_WORDBREAK);return;}

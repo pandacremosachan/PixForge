@@ -7,16 +7,13 @@ import threading
 import time
 
 from .canvas import Canvas
+from .palette import Palette
 from .document import Document, StudioError, encoded, playback
 from .preview import render_canvas
-from .image_bytes import png
+from .image_bytes import png_base64
 from .protocol import Executor, PixForgeError
 from .transactions import commit_files
 from .shapes import default_shapes, normalize as normalize_shapes
-
-
-def image_data(image):
-    return base64.b64encode(png(image)).decode("ascii")
 
 
 def dispatch(document, payload, *, focus=None):
@@ -30,6 +27,9 @@ def dispatch(document, payload, *, focus=None):
                 "project_path": str(document.project_path) if document.project_path else None,
                 "saved_digest": document.saved_digest, "dependency_current": document.dependency_current(),
                 "manual_stroke_active": document.stroke is not None, "view_frame": document.view_frame}
+    if action == "rig_inspect":
+        from .rig_studio import inspect
+        return {"document_id":document.document_id,"revision":document.revision,**inspect(document.shapes["model"],payload.get("clip"),payload.get("bone"),payload.get("native",False),payload.get("cube_ids"))}
     if action == "animation_capabilities":
         from .scene_animation import capabilities
         return {"capabilities": capabilities(), "state": document.status()}
@@ -70,6 +70,9 @@ def dispatch(document, payload, *, focus=None):
             view=payload.get("options"), batch=payload.get("batch", False), contexts=payload.get("contexts"),
             case_offset=payload.get("case_offset", 0), case_limit=payload.get("case_limit", 16))}
     if action == "scene_sample":
+        if (document.shapes.get("model") or {}).get("rig_source"):
+            from .rig_frame import render_rig
+            return {"state":document.status(),"sample":render_rig(document,None,payload,sample=True)}
         from .scene_animation import sample
         from .scene_program import validate_view, is_program
         if document.scene_animation is None:
@@ -114,13 +117,14 @@ def dispatch(document, payload, *, focus=None):
         return {"state": document.status()}
     if action == "snapshot":
         from .model_uv import describe
-        return {"state": document.status(), "canvas": document.canvas.to_dict(),
+        canvas_data = document.canvas.to_dict()
+        return {"state": document.status(canvas_data), "canvas": canvas_data,
                 "model_uv": describe(document.shapes.get("model"), document.animation["frame_size"]),
                 "native_protocol": {"version": 1, "fast_poll": True, "stroke_patches": True},
                 "undo_count": len(document.undo_stack), "redo_count": len(document.redo_stack)}
     if action == "preview":
         options = {k: payload[k] for k in ("scale", "tile", "backgrounds", "frame_height") if k in payload}
-        return {"state": document.status(), "image": image_data(render_canvas(document.canvas, **options))}
+        return {"state": document.status(), "image": png_base64(render_canvas(document.canvas, **options))}
     if action == "animation_preview":
         if document.scene_animation is not None:
             from .scene_preview import preview
@@ -138,8 +142,10 @@ def dispatch(document, payload, *, focus=None):
         values = [payload.get(k) for k in ("x", "y", "w", "h")]
         if any(type(n) is not int for n in values):
             raise StudioError("read 的 x/y/w/h 须为整数")
-        lines = Executor(document.canvas.clone()).run_script("read " + " ".join(map(str, values)) +
-                                                             (" raw" if payload.get("raw") else ""))
+        # A read can assign temporary palette letters, but it never writes layer pixels.
+        palette = Palette()
+        palette.chars = document.canvas.palette.chars.copy()
+        lines = document.executor.read_region([*map(str,values)]+(["raw"] if payload.get("raw") else []), palette)
         return {"state": document.status(), "text": "\n".join(lines)}
     if action == "shape_preview":
         from .shape_preview import MODEL_VIEW, render, html
@@ -148,9 +154,22 @@ def dispatch(document, payload, *, focus=None):
             raise StudioError("形状预览帧索引超出范围")
         x,y,w,h = document.animation["rectangles"][frame]
         options = {k: payload.get(k, default) for k, default in MODEL_VIEW.items()}
-        image = render(document.shapes, document.canvas.composite().crop((x,y,x+w,y+h)), scene=document.scene_animation, time_ms=payload.get("time_ms",0), **options)
+        atlas = document.canvas.composite()
+        hidden = payload.get("hidden_skin_overlays", [])
+        if hidden:
+            from .model_uv import describe
+            from .player_skin import preview_layers
+            layout = describe(document.shapes.get("model"), [w,h]).get("player_skin")
+            if not layout:
+                raise StudioError("服装外层开关用于玩家皮肤模型")
+            preview_layers(atlas, layout, hidden, document.animation["rectangles"])
+        if (document.shapes.get("model") or {}).get("rig_source"):
+            from .rig_frame import render_rig
+            image=render_rig(document,atlas,payload)
+            return {"image":png_base64(image),"report":document.status()["shape_report"],"state":document.status()}
+        image = render(document.shapes, atlas.crop((x,y,x+w,y+h)), scene=document.scene_animation, time_ms=payload.get("time_ms",0), **options)
         state = document.status()
-        result = {"state": state, "image": image_data(image), "report": state["shape_report"]}
+        result = {"state": state, "image": png_base64(image), "report": state["shape_report"]}
         if payload.get("html", False):
             metadata = {k: state[k] for k in ("document_id", "revision", "content_digest")}
             metadata["project_name"] = document.project_path.name if document.project_path else "未命名工程"
@@ -164,7 +183,7 @@ def dispatch(document, payload, *, focus=None):
                 inventory = gui.get("image")
                 result["item_gui_validation"] = gui["validation"]
             result["html"] = html(document.shapes, document.canvas, document.animation, metadata,
-                                  view=options, scene=document.scene_animation, inventory=inventory)
+                                  view=options, scene=document.scene_animation, inventory=inventory, atlas=atlas)
         return result
     document.guard(payload.get("expected_document_id"), payload.get("expected_revision"))
     if action in ("edit", "validate"):
@@ -177,7 +196,7 @@ def dispatch(document, payload, *, focus=None):
                               include_preview=payload.get("include_preview", True), preview_options=options)
         response = {"state": document.status(), "messages": batch.messages, "batch": batch.summary}
         if batch.preview is not None:
-            response["image"] = image_data(batch.preview)
+            response["image"] = png_base64(batch.preview)
         return response
     if action in ("undo", "redo"):
         document.history(action)
@@ -187,7 +206,7 @@ def dispatch(document, payload, *, focus=None):
         plan = document.create_project(payload.get("settings"))
         return {"state": document.status(), "plan": plan}
     elif action == "open":
-        document.open(payload["path"])
+        document.open(payload["path"], arm_model=payload.get("arm_model"))
     elif action == "save":
         document.save(payload["path"])
     elif action == "animation":
@@ -224,6 +243,11 @@ def dispatch(document, payload, *, focus=None):
     elif action == "model_import":
         value = json.loads(Path(payload["path"]).read_text(encoding="utf-8")) if payload.get("path") else payload.get("model")
         document.import_model(value)
+    elif action == "rig_edit":
+        document.edit_rig(payload["operations"])
+    elif action == "rig_export":
+        receipt=document.write_rig(payload["path"],payload["format"],payload.get("metadata"),payload.get("overwrite",False))
+        return {"state":document.status(),"export":receipt}
     elif action in ("shape_build", "shape_optimize"):
         options={key:payload[key] for key in ("target","max_error","target_boxes","symmetry","dry_run") if key in payload}
         result=document.construct_shapes("build" if action=="shape_build" else "optimize",**options)
@@ -241,6 +265,9 @@ def dispatch(document, payload, *, focus=None):
         receipt = document.export(payload["path"], frame=payload.get("frame"), scale=payload.get("scale", 1),
                                   overwrite=payload.get("overwrite", False))
         return {"state": document.status(), "export": receipt}
+    elif action == "canvas_resize":
+        from .canvas_resize import resize
+        resize(document, payload["width"], payload["height"])
     elif action == "canvas_replace":
         candidate = Canvas.from_dict(payload["canvas"])
         if (candidate.w, candidate.h) != (document.canvas.w, document.canvas.h):
@@ -282,7 +309,8 @@ class Session:
         canvas = Canvas.from_dict(snapshot[0])
         animation=playback(snapshot[1], (canvas.w, canvas.h))
         shapes = normalize_shapes(snapshot[3]) if len(snapshot)>3 else default_shapes()
-        result = (canvas, animation, snapshot[2], shapes, None)
+        from .rig_studio import restore_edit_view
+        result = (canvas, animation, snapshot[2], restore_edit_view(shapes,(canvas.w,canvas.h)), None)
         if len(snapshot)>5:
             from .scene_animation import normalize
             from .scene_program import validate_binding
@@ -304,11 +332,22 @@ class Session:
         runtime_history = bool(d.minecraft_project and d.minecraft_project.get("runtime")) or any(len(s)>6 and s[6] and s[6].get("runtime") for s in [*d.undo_stack, *d.redo_stack])
         material_history = d.material_data is not None or any(len(s)>7 for s in [*d.undo_stack,*d.redo_stack])
         schema = "pixelforge.session/v4" if material_history else "pixelforge.session/v3" if runtime_history else "pixelforge.session/v2" if minecraft_history else "pixelforge.session/v1"
-        commit_files({self.checkpoint: encoded({"schema": schema, "project": d.project_data(),
-            "revision": d.revision, "saved_digest": d.saved_digest,
-            "project_path": str(d.project_path) if d.project_path else None, "project_stamp": d.project_stamp,
-            "source_path": str(d.source_path) if d.source_path else None, "events": d.events,
-            "undo": [self._pack(s) for s in d.undo_stack], "redo": [self._pack(s) for s in d.redo_stack]})})
+        def chunks():
+            # Serialize one history entry at a time to the same atomic checkpoint.
+            head = {"schema": schema, "revision": d.revision, "saved_digest": d.saved_digest,
+                    "project_path": str(d.project_path) if d.project_path else None, "project_stamp": d.project_stamp,
+                    "source_path": str(d.source_path) if d.source_path else None, "events": d.events}
+            yield encoded(head)[:-1]
+            yield b', "project": '
+            yield encoded(d.project_data())
+            for name, stack in ((b'undo',d.undo_stack),(b'redo',d.redo_stack)):
+                yield b', "'+name+b'": ['
+                for index, snapshot in enumerate(stack):
+                    if index: yield b', '
+                    yield encoded(self._pack(snapshot))
+                yield b']'
+            yield b'}'
+        commit_files({self.checkpoint: chunks()})
 
     def _restore(self, record):
         if record.get("schema") not in ("pixelforge.session/v1", "pixelforge.session/v2", "pixelforge.session/v3", "pixelforge.session/v4"):
@@ -323,7 +362,8 @@ class Session:
         d.executor, d.animation = Executor(canvas), animation
         d.document_id, d.revision = metadata["document_id"], record["revision"] + 1
         d.animation_source, d.approval, d.notes = metadata.get("animation_source"), metadata.get("approval"), metadata.get("notes", [])
-        d.shapes = normalize_shapes(metadata.get("shapes", default_shapes()))
+        from .rig_studio import restore_edit_view
+        d.shapes = restore_edit_view(normalize_shapes(metadata.get("shapes", default_shapes())),(canvas.w,canvas.h))
         from .scene_animation import normalize as normalize_scene
         d.scene_animation = normalize_scene(metadata.get("scene_animation"), d.shapes["model"])
         from .minecraft_target import normalize as normalize_minecraft
@@ -335,8 +375,6 @@ class Session:
         from .scene_program import validate_binding
         validate_binding(d.scene_animation,animation)
         d.undo_stack, d.redo_stack, d.events = undo, redo, record.get("events", [])
-        d.canvas._undo = [snapshot[0]._snapshot() for snapshot in undo]
-        d.canvas._redo = [snapshot[0]._snapshot() for snapshot in redo]
         d.project_path = Path(record["project_path"]) if record.get("project_path") else None
         d.source_path = Path(record["source_path"]) if record.get("source_path") else None
         d.project_stamp, d.saved_digest = record.get("project_stamp"), record["saved_digest"]
@@ -411,6 +449,6 @@ class Session:
                 result = dispatch(d, {"action": action, **payload})
             except PixForgeError as error:
                 raise StudioError(str(error), "DRAWING_ERROR") from error
-        if action not in ("status", "view_poll", "snapshot", "model_uv", "animation_capabilities", "minecraft_capabilities", "minecraft_check", "minecraft_scene", "minecraft_preview", "minecraft_animation", "minecraft_performance", "minecraft_regression_compare", "minecraft_material", "scene_sample", "scene_validate", "project_plan", "preview", "animation_preview", "shape_preview", "shape_validate", "read", "validate", "focus", "view") and not (action in ("shape_build","shape_optimize") and payload.get("dry_run")):
+        if action not in ("status", "view_poll", "snapshot", "model_uv", "rig_inspect", "animation_capabilities", "minecraft_capabilities", "minecraft_check", "minecraft_scene", "minecraft_preview", "minecraft_animation", "minecraft_performance", "minecraft_regression_compare", "minecraft_material", "scene_sample", "scene_validate", "project_plan", "preview", "animation_preview", "shape_preview", "shape_validate", "read", "validate", "focus", "view") and not (action in ("shape_build","shape_optimize") and payload.get("dry_run")):
             self.persist()
         return result

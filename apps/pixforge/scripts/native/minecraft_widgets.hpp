@@ -17,19 +17,13 @@ inline void rounded(HDC dc,RECT r,COLORREF color,COLORREF edge=CLR_INVALID,int r
 inline HFONT font(int dpi,int size,int weight=FW_NORMAL,const wchar_t* family=L"Microsoft YaHei UI"){return CreateFontW(-MulDiv(size,dpi,96),0,0,0,weight,FALSE,FALSE,FALSE,DEFAULT_CHARSET,OUT_DEFAULT_PRECIS,CLIP_DEFAULT_PRECIS,CLEARTYPE_QUALITY,DEFAULT_PITCH,family);}
 inline void dark(HWND h){SetWindowTheme(h,L"DarkMode_Explorer",nullptr);}
 inline void titlebar(HWND h){BOOL yes=TRUE;DwmSetWindowAttribute(h,20,&yes,sizeof yes);}
-inline LRESULT CALLBACK buttonHover(HWND h,UINT m,WPARAM w,LPARAM l,UINT_PTR id,DWORD_PTR){
-    if(m==WM_MOUSEMOVE&&!GetPropW(h,L"Hover")){SetPropW(h,L"Hover",HANDLE(1));TRACKMOUSEEVENT track{sizeof track,TME_LEAVE,h,0};TrackMouseEvent(&track);InvalidateRect(h,nullptr,FALSE);}if(m==WM_MOUSELEAVE){RemovePropW(h,L"Hover");InvalidateRect(h,nullptr,FALSE);}if(m==WM_SETFOCUS){if(GetKeyState(VK_TAB)<0)keyboardFocusMode(h,true);SendMessageW(GetParent(h),WM_APP+90,WPARAM(h),0);}if(m==WM_SETCURSOR&&IsWindowEnabled(h)){SetCursor(LoadCursorW(nullptr,IDC_HAND));return TRUE;}if(m==WM_NCDESTROY){RemovePropW(h,L"Hover");RemoveWindowSubclass(h,buttonHover,id);}return DefSubclassProc(h,m,w,l);
-}
-inline void buttonBehavior(HWND h){installButtonFocus(h);SetWindowSubclass(h,buttonHover,2,0);}
-inline LRESULT CALLBACK comboPaint(HWND h,UINT m,WPARAM w,LPARAM l,UINT_PTR id,DWORD_PTR){
-    if(m==WM_NCPAINT)return 0;
-    if(m==WM_ERASEBKGND)return 1;
-    if(m==WM_PAINT||m==WM_PRINTCLIENT){PAINTSTRUCT ps{};HDC dc=m==WM_PAINT?BeginPaint(h,&ps):HDC(w);RECT r;GetClientRect(h,&r);bufferedPaint(dc,r,[&](HDC out){fill(out,r,panel);rounded(out,r,input,GetFocus()==h?accent:border,6);auto f=HFONT(SendMessageW(h,WM_GETFONT,0,0));SelectObject(out,f);RECT t=r;t.left+=12;t.right-=30;text(out,windowText(h),t,IsWindowEnabled(h)?foreground:muted,DT_LEFT|DT_VCENTER|DT_SINGLELINE|DT_END_ELLIPSIS);int x=r.right-16,y=(r.bottom-r.top)/2;line(out,x-4,y-2,x,y+2,muted);line(out,x,y+2,x+4,y-2,muted);});if(m==WM_PAINT)EndPaint(h,&ps);return 0;}
-    if(m==WM_SETFOCUS)SendMessageW(GetParent(h),WM_APP+90,WPARAM(h),0);
-    if(m==WM_SETFOCUS||m==WM_KILLFOCUS||m==WM_ENABLE)InvalidateRect(h,nullptr,FALSE);
-    if(m==WM_NCDESTROY)RemoveWindowSubclass(h,comboPaint,id);
+inline LRESULT CALLBACK pageButtonProc(HWND h,UINT m,WPARAM w,LPARAM l,UINT_PTR id,DWORD_PTR){
+    if(m==WM_SETFOCUS){if(GetKeyState(VK_TAB)<0)keyboardFocusMode(h,true);SendMessageW(GetParent(h),WM_APP+90,WPARAM(h),0);}
+    if(m==WM_SETCURSOR&&IsWindowEnabled(h)){SetCursor(LoadCursorW(nullptr,IDC_HAND));return TRUE;}
+    if(m==WM_NCDESTROY)RemoveWindowSubclass(h,pageButtonProc,id);
     return DefSubclassProc(h,m,w,l);
 }
+inline void buttonBehavior(HWND h){installButtonFocus(h);SetWindowSubclass(h,pageButtonProc,2,0);}
 inline LRESULT CALLBACK inputPaint(HWND h,UINT m,WPARAM w,LPARAM l,UINT_PTR id,DWORD_PTR){
     if(m==WM_SETFOCUS)SendMessageW(GetParent(h),WM_APP+90,WPARAM(h),0);
     if(m==WM_SETFOCUS||m==WM_KILLFOCUS||m==WM_ENABLE){RECT r;GetWindowRect(h,&r);MapWindowPoints(nullptr,GetParent(h),reinterpret_cast<POINT*>(&r),2);InflateRect(&r,8,8);InvalidateRect(GetParent(h),&r,FALSE);}
@@ -50,9 +44,9 @@ public:
     ~Page(){DeleteObject(inputBrush);DeleteObject(panelBrush);}
     HWND add(std::wstring label,std::wstring value=L"",std::function<void()> callback={},const wchar_t* kind=L"EDIT",int=32,DWORD editStyle=0){
         HWND title=label.empty()?nullptr:CreateWindowExW(0,L"STATIC",label.c_str(),WS_CHILD|SS_LEFT,0,0,1,1,hwnd,nullptr,GetModuleHandleW(nullptr),nullptr);DWORD style=WS_CHILD|WS_TABSTOP;std::wstring type(kind);
-        if(type==L"BUTTON")style|=BS_OWNERDRAW;else if(type==L"COMBOBOX")style|=CBS_DROPDOWNLIST|CBS_OWNERDRAWFIXED|CBS_HASSTRINGS|WS_VSCROLL;else if(type==L"LISTBOX")style|=LBS_NOTIFY|LBS_OWNERDRAWFIXED|LBS_HASSTRINGS|WS_VSCROLL|LBS_NOINTEGRALHEIGHT;else style|=editStyle?editStyle:ES_AUTOHSCROLL;
+        if(type==L"BUTTON")style|=BS_OWNERDRAW;else if(type==L"COMBOBOX")style|=CBS_DROPDOWNLIST|WS_VSCROLL;else if(type==L"LISTBOX")style|=LBS_NOTIFY|LBS_OWNERDRAWFIXED|LBS_HASSTRINGS|WS_VSCROLL|LBS_NOINTEGRALHEIGHT;else style|=editStyle?editStyle:ES_AUTOHSCROLL;
         int id=nextId++;HWND h=CreateWindowExW(0,kind,value.c_str(),style,0,0,1,1,hwnd,reinterpret_cast<HMENU>(INT_PTR(id)),GetModuleHandleW(nullptr),nullptr);SendMessageW(h,WM_SETFONT,WPARAM(regular),TRUE);if(title)SendMessageW(title,WM_SETFONT,WPARAM(regular),TRUE);dark(h);
-        fields.push_back({title,h,id,std::move(callback)});if(type==L"BUTTON")buttonBehavior(h);if(type==L"COMBOBOX"){SendMessageW(h,CB_SETITEMHEIGHT,WPARAM(-1),D(30));SendMessageW(h,CB_SETITEMHEIGHT,0,D(30));SetWindowSubclass(h,comboPaint,1,0);}if(type==L"LISTBOX")SendMessageW(h,LB_SETITEMHEIGHT,0,D(42));if(type==L"EDIT"){SendMessageW(h,EM_SETMARGINS,EC_LEFTMARGIN|EC_RIGHTMARGIN,MAKELPARAM(0,0));SendMessageW(h,EM_SETLIMITTEXT,4*1024*1024,0);SetWindowSubclass(h,inputPaint,1,0);}return h;
+        fields.push_back({title,h,id,std::move(callback)});if(type==L"BUTTON")buttonBehavior(h);if(type==L"COMBOBOX"){SendMessageW(h,CB_SETITEMHEIGHT,WPARAM(-1),D(30));SendMessageW(h,CB_SETITEMHEIGHT,0,D(30));choice::styleSelect(h);}if(type==L"LISTBOX")SendMessageW(h,LB_SETITEMHEIGHT,0,D(42));if(type==L"EDIT"){SendMessageW(h,EM_SETMARGINS,EC_LEFTMARGIN|EC_RIGHTMARGIN,MAKELPARAM(0,0));SendMessageW(h,EM_SETLIMITTEXT,4*1024*1024,0);SetWindowSubclass(h,inputPaint,1,0);}return h;
     }
     HWND button(std::wstring title,std::function<void()> cb){return add(L"",title,std::move(cb),L"BUTTON");}
     HWND combo(std::wstring title,std::initializer_list<std::wstring> values,std::function<void()> cb={}){HWND h=add(title,L"",std::move(cb),L"COMBOBOX");for(auto& v:values)SendMessageW(h,CB_ADDSTRING,0,LPARAM(v.c_str()));comboSet(h,0);return h;}
@@ -70,7 +64,7 @@ public:
     void paint(HDC dc){RECT r;GetClientRect(hwnd,&r);fill(dc,r,panel);for(auto& c:cards){auto box=c.rect;OffsetRect(&box,0,-offset);rounded(dc,box,c.color,c.edge,D(9));}for(auto& f:fields)if(f.placed&&Form::className(f.control)==L"Edit"){auto box=f.bounds;OffsetRect(&box,0,-offset);rounded(dc,box,input,GetFocus()==f.control?accent:border,D(6));}for(auto& c:captions){auto box=c.rect;OffsetRect(&box,0,-offset);SelectObject(dc,c.bold?bold:regular);text(dc,c.value,box,c.color,c.flags);}if(total>r.bottom)rounded(dc,thumb(),dragging?accent:RGB(88,97,118),CLR_INVALID,D(2));}
     void draw(DRAWITEMSTRUCT* item){bufferedItem(*item,[&](DRAWITEMSTRUCT& row){drawItem(&row);});}
     void drawItem(DRAWITEMSTRUCT* d){SelectObject(d->hDC,regular);auto type=Form::className(d->hwndItem);RECT r=d->rcItem;bool enabled=IsWindowEnabled(d->hwndItem)!=FALSE;
-        if(type==L"Button"){bool primary=GetPropW(d->hwndItem,L"Primary")!=nullptr,hover=GetPropW(d->hwndItem,L"Hover")!=nullptr;COLORREF bg=!enabled?RGB(43,46,58):primary?((d->itemState&ODS_SELECTED)?RGB(146,126,220):hover?RGB(204,194,255):accent):((d->itemState&ODS_SELECTED)?selected:hover?RGB(61,67,85):RGB(48,54,69));fill(d->hDC,r,panel);rounded(d->hDC,r,bg,primary?CLR_INVALID:border,D(6));RECT t=r;t.left+=D(12);t.right-=D(12);text(d->hDC,windowText(d->hwndItem),t,!enabled?RGB(113,122,142):primary?RGB(30,24,44):foreground,DT_CENTER|DT_VCENTER|DT_SINGLELINE|DT_END_ELLIPSIS);drawButtonFocus(d->hDC,r,d->hwndItem,d->itemState);return;}
+        if(type==L"Button"){bool primary=GetPropW(d->hwndItem,L"Primary")!=nullptr,hover=choice::hovered(d->hwndItem);COLORREF bg=!enabled?RGB(43,46,58):primary?((d->itemState&ODS_SELECTED)?RGB(146,126,220):hover?RGB(204,194,255):accent):((d->itemState&ODS_SELECTED)?selected:hover?RGB(61,67,85):RGB(48,54,69));fill(d->hDC,r,panel);rounded(d->hDC,r,bg,primary?CLR_INVALID:border,D(6));RECT t=r;t.left+=D(12);t.right-=D(12);text(d->hDC,windowText(d->hwndItem),t,!enabled?RGB(113,122,142):primary?RGB(30,24,44):foreground,DT_CENTER|DT_VCENTER|DT_SINGLELINE|DT_END_ELLIPSIS);drawButtonFocus(d->hDC,r,d->hwndItem,d->itemState);return;}
         fill(d->hDC,r,(d->itemState&ODS_SELECTED)?selected:input);if(d->itemID==UINT(-1))return;std::vector<wchar_t> value(32768);SendMessageW(d->hwndItem,type==L"ListBox"?LB_GETTEXT:CB_GETLBTEXT,d->itemID,LPARAM(value.data()));r.left+=D(12);r.right-=D(10);text(d->hDC,value.data(),r,(d->itemState&ODS_SELECTED)?accent:foreground,DT_LEFT|DT_VCENTER|DT_SINGLELINE|DT_END_ELLIPSIS);if(d->itemState&ODS_FOCUS)drawButtonFocus(d->hDC,d->rcItem,d->hwndItem,d->itemState);
     }
     static LRESULT CALLBACK proc(HWND h,UINT m,WPARAM w,LPARAM l){auto s=reinterpret_cast<Page*>(GetWindowLongPtrW(h,GWLP_USERDATA));if(m==WM_NCCREATE){s=static_cast<Page*>(reinterpret_cast<CREATESTRUCTW*>(l)->lpCreateParams);SetWindowLongPtrW(h,GWLP_USERDATA,LONG_PTR(s));}if(!s)return DefWindowProcW(h,m,w,l);

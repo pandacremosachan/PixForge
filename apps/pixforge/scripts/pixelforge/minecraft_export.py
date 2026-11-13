@@ -1,7 +1,6 @@
 """Versioned asset generation and atomic ZIP publication, owned by the app."""
 from copy import deepcopy
 import io
-import json
 import math
 from pathlib import Path
 import zipfile
@@ -9,6 +8,7 @@ import zipfile
 from PIL import Image
 
 from .document import StudioError
+from .image_bytes import png
 from .minecraft_target import normalize, location
 from .minecraft_resources import Audit, digest, encode
 from .transactions import commit_files
@@ -35,10 +35,8 @@ def _binding(document, config):
     image = document.canvas.composite()
     for index, (x, y, rw, rh) in enumerate(rectangles):
         atlas.paste(image.crop((x, y, x+rw, y+rh)), (0, index*h))
-    stream = io.BytesIO()
-    atlas.save(stream, format="PNG")
-    png = location("texture", texture)
-    files[png] = stream.getvalue()
+    texture_path = location("texture", texture)
+    files[texture_path] = png(atlas)
     entries.append({"kind": "texture", "id": texture})
     if len(rectangles) > 1 or len(steps) > 1 or config.get("texture_animation") is not None:
         if not plan["loop"]:
@@ -50,14 +48,23 @@ def _binding(document, config):
                 issue("ANIMATION_TICK_PRECISION", "Forge 1.20.1 纹理帧时长须为 50 ms 的正整数倍；不会静默四舍五入")
                 break
             frames.append({"index": step["frame"], "time": round(ticks)})
-        files[png+".mcmeta"] = encode({"animation": {"width": w, "height": h, "interpolate": config.get("texture_animation", {}).get("interpolate", False), "frames": frames}})
+        files[texture_path+".mcmeta"] = encode({"animation": {"width": w, "height": h, "interpolate": config.get("texture_animation", {}).get("interpolate", False), "frames": frames}})
     if kind == "texture":
         if document.scene_animation is not None:
             issue("TEXTURE_ONLY_RUNTIME_NOT_INCLUDED", "本次仅导出纹理；部件或粒子仍需项目适配器", "warning")
         return files, entries, issues
     if document.scene_animation is not None:
         issue("SCENE_ADAPTER_REQUIRED", "普通资源包不能承载当前部件 / 粒子 / 状态动画；先使用项目运行时适配器，或明确选择仅纹理导出")
-    model = deepcopy(document.shapes["model"])
+    model = document.shapes["model"]
+    if model and "rig_source" in model:
+        from .rig_studio import block_geometry
+        try:
+            model = block_geometry(model)
+        except ValueError as error:
+            issue("TARGET_MODEL_FORMAT", str(error))
+            return files, entries, issues
+    else:
+        model = deepcopy(model)
     if model is None and kind == "block":
         issue("MODEL_REQUIRED", "方块资源需要当前工程的显式模型；纯像素工程可选择仅纹理或物品导出")
         return files, entries, issues
@@ -170,7 +177,7 @@ def publish(document, path, *, validation_digest, format="resource-pack", overwr
         files.update(project_files(document.minecraft_project, standalone=format == "forge-mod", scene_geometry=report["forge_runtime"].get("scene_geometry", True)))
     if format == "resource-pack":
         files["pack.mcmeta"] = encode({"pack": {"pack_format": 15, "description": document.minecraft_project["description"]}})
-    manifest = {"schema": "pixforge.minecraft-export/v1", "exporter_version": "4.2.3", "format": format,
+    manifest = {"schema": "pixforge.minecraft-export/v1", "exporter_version": "4.12.1", "format": format,
                 "target": report["target"], "document_id": document.document_id,
                 "content_digest": document.art_digest(), "validation_digest": validation_digest,
                 "files": {name: digest(raw) for name, raw in sorted(files.items())},

@@ -115,7 +115,7 @@ wheels = [
 
 [[package]]
 name = "pixelforge"
-version = "4.2.3"
+version = "4.12.1"
 source = { editable = "." }
 dependencies = [
     { name = "pillow" },

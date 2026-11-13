@@ -1,6 +1,6 @@
 ---
 name: pixelforge
-description: 用 PixForge 制作或修改像素画、Minecraft 材质、GUI、单图集 3D 物品、可放置模型及其碰撞形状，也用于像素和部件动画。
+description: 用 PixForge 制作 Minecraft 原版 PNG 皮肤、支持部件多选、逐面 UV、多贴图和动画曲线的 Blockbench / YSM 骨骼模型、方块与物品材质、GUI、像素画、可放置模型与碰撞形状，以及像素和部件动画。
 ---
 
 # PixForge
@@ -9,7 +9,7 @@ description: 用 PixForge 制作或修改像素画、Minecraft 材质、GUI、�
 
 AI 通过命令绘制材质，用户在工作台查看同一份作品。材质页直接显示画板、绘图工具、调色板和图层；模型页直接显示视角和各形状的开关。有动画时出现播放条。
 
-工作台和命令由同一个常驻 `PixForgeNative.exe` 提供。先连接当前工程的 `R/commands.json`；会话尚未启动时，以技能目录解析 `runtime/windows-x64/PixForgeNative.exe`，在后台启动一次 `serve`。后续用宿主的 HTTP 客户端向同一实例发送命令，无需 Python 客户端或 MCP。
+工作台和命令由同一个常驻 `PixForgeNative.exe` 提供。优先通过目标工程的 `R/commands.json` 复用用户正在用的会话。继续桌面作品时，以该桌面的 workspace/runtime 为准；无参数打开便携版的工作区位于 EXE 旁的 `workspace`。尚无目标会话时，用项目指定的固定安装或技能自带的 `runtime/windows-x64/PixForgeNative.exe` 启动一次 `serve`。后续通过宿主的 HTTP 客户端向同一实例发送命令。
 
 启动时指定消费项目 `--workspace W` 和已有会话 `--runtime R`。下文的 `project state` 等命令名表示发给该会话的 `group` 和 `command`。按需用 `project info` 核对平台与能力，或读取对应动作的 HTTP 帮助查询参数。
 
@@ -35,10 +35,14 @@ AI 通过命令绘制材质，用户在工作台查看同一份作品。材质�
 
 ## 选择流程
 
+新建时按作品选择工程预设，直接调用 `project plan` 或 `project create`。方块在同一工程中绘制贴图、添加和修改三维部件；三维建模入口专用于骨骼角色。[启动页与预设对照](references/desktop.md#启动页与工程预设)
+
 | 任务 | 流程 | 模板 |
 |---|---|---|
-| 普通方块 | [方块](references/workflows/block.md) | block-shared / block-faces |
+| 方块（画材质、改外形、搭部件） | [方块](references/workflows/block.md) · [部件建模与逐面 UV](references/workflows/rig-components.md) | block-shared / block-faces |
 | 平面物品、工具 | [物品](references/workflows/item.md) | item |
+| Java 原版玩家皮肤（新绘、改装 PNG、定位六面或预览服装开关） | [官方格式与工作流](references/workflows/player-skin.md) | player-skin/classic 或 player-skin/slim |
+| 骨骼玩家模型（多选变换、逐面 UV、多贴图、姿势与曲线、Blockbench、YSM） | [骨骼建模与导出](references/workflows/player-rig.md) | player-rig |
 | 3D 物品（手持、物品栏） | [三维物品](references/workflows/item.md#三维物品) | item/project-3d.json + item/target.json |
 | 修改已有材质 | [替换材质](references/workflows/replace-texture.md) | 真实源文件 |
 | 可放置模型、碰撞、选中框 | [模型与形状](references/workflows/model-shapes.md) | custom-model |
@@ -56,4 +60,4 @@ AI 通过命令绘制材质，用户在工作台查看同一份作品。材质�
 - Minecraft：[资源与导出](references/minecraft-assets.md)、[资源机制](references/game-assets.md)、[模型预览](references/minecraft-preview.md)、[静态注册](references/forge-static.md)、[运行时接入](references/forge-runtime.md)。
 - 动态与数据：[播放定义](references/animation-review.md)、[场景协议](references/scene-animation.md)、[游戏回归](references/runtime-678.md)、[数据材质](references/material-data.md)。
 
-基线为 **PixForge 4.2.3 / 命令版本 4**。随包程序面向 **Windows x64**，内置 Minecraft 导出适配 **Java 1.20.1 / Forge**；其他平台或游戏版本先核对可用程序与项目适配器。
+基线为 **PixForge 4.12.1 / 命令版本 4**。随包程序面向 **Windows x64**，内置 Minecraft 导出适配 **Java 1.20.1 / Forge**；其他平台或游戏版本先核对可用程序与项目适配器。

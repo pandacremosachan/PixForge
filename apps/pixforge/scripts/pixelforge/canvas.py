@@ -1,6 +1,5 @@
 """Layered RGBA canvas with mirror-symmetry drawing and snapshot undo."""
 import base64
-import io
 
 from PIL import Image, ImageDraw
 
@@ -10,21 +9,21 @@ from .palette import Palette
 class Layer:
     __slots__ = ("name", "img", "visible")
 
-    def __init__(self, name: str, w: int, h: int):
+    def __init__(self, name: str, w: int, h: int, image=None, visible=True):
         self.name = name
-        self.img = Image.new("RGBA", (w, h), (0, 0, 0, 0))
-        self.visible = True
+        self.img = image if image is not None else Image.new("RGBA", (w, h))
+        self.visible = visible
 
 
 class Canvas:
     UNDO_LIMIT = 50
 
-    def __init__(self, w: int, h: int):
+    def __init__(self, w: int, h: int, *, layers=None):
         if type(w) is not int or type(h) is not int or not (1 <= w <= 4096 and 1 <= h <= 4096):
             raise ValueError(f"canvas size must be 1..4096 per side, got {w}x{h}")
         self.w = w
         self.h = h
-        self.layers: list[Layer] = [Layer("main", w, h)]
+        self.layers: list[Layer] = [Layer("main", w, h)] if layers is None else layers
         self.active_index = 0
         self.mirror = False
         self.palette = Palette()
@@ -76,15 +75,13 @@ class Canvas:
         self.w, self.h, layers, active, self.mirror, colors = snap
         self.palette = Palette()
         self.palette.chars = colors.copy()
-        self.layers = [Layer(n, self.w, self.h) for n, _, _ in layers]
-        for layer, (_, img, visible) in zip(self.layers, layers):
-            layer.img = img.copy()
-            layer.visible = visible
+        self.layers = [Layer(n, self.w, self.h, img.copy(), visible) for n,img,visible in layers]
         self.active_index = min(active, len(self.layers) - 1)
 
     def clone(self) -> "Canvas":
-        result = Canvas(self.w, self.h)
-        result._restore(self._snapshot())
+        result = Canvas(self.w, self.h, layers=[Layer(l.name,self.w,self.h,l.img.copy(),l.visible) for l in self.layers])
+        result.active_index, result.mirror = self.active_index, self.mirror
+        result.palette.chars = self.palette.chars.copy()
         # History snapshots are immutable; restoring one always copies its pixels.
         result._undo = list(self._undo)
         result._redo = list(self._redo)
@@ -135,19 +132,11 @@ class Canvas:
         if self.mirror:
             self._paste_clipped(tile.transpose(Image.FLIP_LEFT_RIGHT), self.w - x - tile.width, y)
 
-    def set_pixel(self, x: int, y: int, rgba: tuple[int, int, int, int]) -> None:
-        self.push_undo()
-        self._set_pixel_raw(x, y, rgba)
-
     def _set_pixel_raw(self, x: int, y: int, rgba: tuple[int, int, int, int]) -> None:
-        self._paste_clipped(self._tile_from_pixels([rgba], 1, 1), x, y)
-        if self.mirror:
-            self._paste_clipped(self._tile_from_pixels([rgba], 1, 1), self.w - 1 - x, y)
-
-    def fill_rect(self, x0: int, y0: int, x1: int, y1: int, rgba: tuple[int, int, int, int]) -> None:
-        """Inclusive-corner rect fill; clipped to canvas. Honors mirror."""
-        self.push_undo()
-        self._fill_rect_raw(x0, y0, x1, y1, rgba)
+        if 0 <= x < self.w and 0 <= y < self.h:
+            self.active.img.putpixel((x, y), rgba)
+            if self.mirror:
+                self.active.img.putpixel((self.w-1-x, y), rgba)
 
     def _fill_rect_raw(self, x0: int, y0: int, x1: int, y1: int, rgba) -> None:
         if x0 > x1:
@@ -171,11 +160,16 @@ class Canvas:
         out = Image.new("RGBA", (self.w, self.h), (0, 0, 0, 0))
         for layer in self.layers:
             if layer.visible:
-                out.alpha_composite(layer.img)
+                out = Image.alpha_composite(out, layer.img)
         return out
 
     def region(self, x: int, y: int, w: int, h: int) -> Image:
-        return self.composite().crop((x, y, x + w, y + h))
+        box = (x, y, x+w, y+h)
+        out = Image.new("RGBA", (w, h))
+        for layer in self.layers:
+            if layer.visible:
+                out = Image.alpha_composite(out, layer.img.crop(box))
+        return out
 
     # ------------------------------------------------------------ persistence
     def to_dict(self) -> dict:
@@ -216,7 +210,7 @@ class Canvas:
     def from_dict(cls, data: dict) -> "Canvas":
         if not isinstance(data, dict):
             raise ValueError("session must be a JSON object")
-        canvas = cls(data["w"], data["h"])
+        canvas = cls(data["w"], data["h"], layers=[])
         if type(data.get("mirror", False)) is not bool:
             raise ValueError("mirror must be boolean")
         canvas.mirror = data.get("mirror", False)
@@ -228,19 +222,16 @@ class Canvas:
             canvas.palette.define(ch, tuple(c))
         if not isinstance(data.get("layers"), list) or not 1 <= len(data["layers"]) <= 16:
             raise ValueError("session must contain 1..16 layers")
-        canvas.layers = []
         for ld in data["layers"]:
             if not isinstance(ld, dict) or not isinstance(ld.get("name"), str) or not ld["name"].strip() or ld["name"] in canvas.layer_names():
                 raise ValueError("layer names must be nonempty and unique")
             if type(ld.get("visible", True)) is not bool:
                 raise ValueError("layer visibility must be boolean")
-            layer = Layer(ld["name"], canvas.w, canvas.h)
-            layer.visible = ld.get("visible", True)
             raw = base64.b64decode(ld["data"], validate=True)
             if len(raw) != canvas.w * canvas.h * 4:
                 raise ValueError("layer pixel byte count does not match canvas dimensions")
-            layer.img = Image.frombytes("RGBA", (canvas.w, canvas.h), raw)
-            canvas.layers.append(layer)
+            canvas.layers.append(Layer(ld["name"], canvas.w, canvas.h,
+                Image.frombytes("RGBA", (canvas.w, canvas.h), raw), ld.get("visible", True)))
         canvas.active_index = canvas.layer_names().index(data.get("active", canvas.layers[0].name))
         return canvas
 
@@ -255,8 +246,3 @@ class Canvas:
             os.makedirs(d, exist_ok=True)
             img.save(path)
         return img
-
-    def layer_png_bytes(self, layer: Layer) -> bytes:
-        buf = io.BytesIO()
-        layer.img.save(buf, "PNG")
-        return buf.getvalue()

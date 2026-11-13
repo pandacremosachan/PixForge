@@ -5,6 +5,7 @@ no Qt bindings or global installation are included or required by this bundle.
 """
 import argparse
 import hashlib
+import json
 from pathlib import Path
 import shutil
 import sys
@@ -54,15 +55,13 @@ def build(binary, output):
     if icon_source.is_dir():
         shutil.copytree(icon_source,output/'icons')
     shutil.copy2(source_root.parent/'public-api.json',output/'application.json')
-    shutil.copy2(source_root.parent/'PUBLIC_API.md',output/'PUBLIC_API.md')
-    shutil.copy2(source_root.parent/'MINECRAFT_ASSETS.md',output/'MINECRAFT_ASSETS.md')
-    shutil.copy2(source_root.parent/'FORGE_RUNTIME.md',output/'FORGE_RUNTIME.md')
-    shutil.copy2(source_root.parent/'MINECRAFT_PREVIEW.md',output/'MINECRAFT_PREVIEW.md')
-    shutil.copy2(source_root.parent/'MINECRAFT_RUNTIME_WORKBENCH.md',output/'MINECRAFT_RUNTIME_WORKBENCH.md')
-    shutil.copy2(source_root.parent/'MINECRAFT_MATERIAL_DATA.md',output/'MINECRAFT_MATERIAL_DATA.md')
+    version=json.loads((output/'application.json').read_bytes())['version']
+    for name in ('PUBLIC_API.md','MINECRAFT_ASSETS.md','FORGE_RUNTIME.md','MINECRAFT_PREVIEW.md',
+                 'MINECRAFT_RUNTIME_WORKBENCH.md','MINECRAFT_MATERIAL_DATA.md'):
+        shutil.copy2(source_root.parent/name,output/name)
     shutil.copytree(source_root/'pixelforge',packages/'pixelforge',ignore=shutil.ignore_patterns('__pycache__','*.pyc'))
-    metadata=packages/'pixelforge-4.2.3.dist-info';metadata.mkdir()
-    (metadata/'METADATA').write_text('Metadata-Version: 2.1\nName: pixelforge\nVersion: 4.2.3\nSummary: PixForge independent pixel, animation, shape and scene core\n',encoding='utf-8')
+    metadata=packages/f'pixelforge-{version}.dist-info';metadata.mkdir()
+    (metadata/'METADATA').write_text(f'Metadata-Version: 2.1\nName: pixelforge\nVersion: {version}\nSummary: PixForge independent pixel, animation, shape and scene core\n',encoding='utf-8')
     (metadata/'WHEEL').write_text('Wheel-Version: 1.0\nGenerator: PixForge native local packager\nRoot-Is-Purelib: true\nTag: py3-none-any\n',encoding='utf-8')
     notice=source_root.parent/'THIRD_PARTY_NOTICES.md'
     if notice.exists():shutil.copy2(notice,output/'THIRD_PARTY_NOTICES.md')
@@ -72,17 +71,52 @@ def build(binary, output):
     readme=(source_root.parent/'README.md').read_text(encoding='utf-8')
     (output/'使用说明.md').write_text(readme,encoding='utf-8',newline='\n')
     files={str(p.relative_to(output)).replace('\\','/'):hashlib.sha256(p.read_bytes()).hexdigest() for p in output.rglob('*') if p.is_file()}
-    import json
-    (output/'package-manifest.json').write_text(json.dumps({'version':'4.2.3','frontend':'C++20/Win32/OpenGL','core':'bundled CPython 3.12/Pillow/Pydantic','qt_included':False,'files':files},ensure_ascii=False,indent=2)+'\n',encoding='utf-8',newline='\n')
+    (output/'package-manifest.json').write_text(json.dumps({'version':version,'frontend':'C++20/Win32/OpenGL','core':'bundled CPython 3.12/Pillow/Pydantic','qt_included':False,'files':files},ensure_ascii=False,indent=2)+'\n',encoding='utf-8',newline='\n')
     return output
+
+
+def deliver(binary, destination):
+    """Refresh the one installed copy and its clean portable archive."""
+    destination = Path(destination).resolve()
+    destination.mkdir(parents=True, exist_ok=True)
+    installed = destination / 'PixForge'
+    archive = destination / 'PixForge-Portable-Windows-x64.zip'
+    manifest = 'package-manifest.json'
+    with tempfile.TemporaryDirectory(prefix='.pixforge-delivery-', dir=destination) as temporary:
+        stage = Path(temporary)
+        package = build(binary, stage / 'PixForge')
+        packed = Path(shutil.make_archive(str(stage / 'portable'), 'zip', stage, package.name))
+        if installed.exists():
+            previous = json.loads((installed / manifest).read_bytes())['files']
+            current = json.loads((package / manifest).read_bytes())['files']
+            for name, digest in current.items():
+                target = installed / name
+                if previous.get(name) == digest and target.is_file():
+                    continue
+                target.parent.mkdir(parents=True, exist_ok=True)
+                (package / name).replace(target)
+            for name in previous.keys() - current.keys():
+                stale = (installed / name).resolve()
+                if not stale.is_relative_to(installed) or stale.is_relative_to(installed / 'workspace'):
+                    raise ValueError('Invalid package path: ' + name)
+                stale.unlink(missing_ok=True)
+            (package / manifest).replace(installed / manifest)
+        else:
+            package.rename(installed)
+        packed.replace(archive)
+    return installed / 'PixForgeNative.exe', archive
 
 
 if __name__=='__main__':
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--binary',type=Path,required=True)
-    parser.add_argument('--output',type=Path,required=True,help='New application directory or standalone portable .zip')
+    target=parser.add_mutually_exclusive_group()
+    target.add_argument('--deliver-to',type=Path,help='Update the fixed PixForge directory and portable ZIP here (default: ./outputs)')
+    target.add_argument('--output',type=Path,help='Build a separate directory or ZIP for an explicit export')
     args=parser.parse_args()
-    if args.output.suffix.lower() == '.zip':
+    if args.output is None:
+        print(*deliver(args.binary, args.deliver_to or Path.cwd() / 'outputs'), sep='\n')
+    elif args.output.suffix.lower() == '.zip':
         destination = args.output.resolve()
         if destination.exists():
             parser.error('Choose a new archive path; existing deliveries are not overwritten.')

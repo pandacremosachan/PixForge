@@ -1,12 +1,11 @@
 """Deterministic model/shape overlay renderer and portable interactive review. Pillow only."""
-import base64
-import io
 import json
 import math
 from pathlib import Path
 
 from PIL import Image, ImageDraw
 from .shapes import effective, report
+from .image_bytes import png_base64
 
 NORMALS = {"north": (0, 0, -1), "south": (0, 0, 1), "west": (-1, 0, 0),
            "east": (1, 0, 0), "up": (0, 1, 0), "down": (0, -1, 0)}
@@ -96,8 +95,7 @@ def render(shapes, texture, *, size=400, yaw=35, pitch=30, overlays=("collision"
     project, depth, bounds = camera(shapes, size, yaw, pitch, scene)
     faces = mesh(shapes["model"])
     if scene is not None:
-        from .scene_animation import transform, particles, _length
-        from .scene_animation import sample as sample_scene
+        from .scene_animation import transform, particles
         from .scene_program import resolve
         clip,actual = resolve(scene,time_ms,scene_view,scene_state)
         t = actual["time_ms"]
@@ -168,13 +166,11 @@ def render(shapes, texture, *, size=400, yaw=35, pitch=30, overlays=("collision"
     return out
 
 
-def html(shapes, canvas, animation, metadata, *, view, scene=None, inventory=None):
+def html(shapes, canvas, animation, metadata, *, view, scene=None, inventory=None, atlas=None):
     images = []
-    image = canvas.composite()
+    image = canvas.composite() if atlas is None else atlas
     for x,y,w,h in animation["rectangles"]:
-        stream = io.BytesIO()
-        image.crop((x,y,x+w,y+h)).save(stream,format="PNG")
-        images.append("data:image/png;base64,"+base64.b64encode(stream.getvalue()).decode("ascii"))
+        images.append("data:image/png;base64,"+png_base64(image.crop((x,y,x+w,y+h))))
     _, _, bounds = camera(shapes, view["size"], view["yaw"], view["pitch"], scene)
     data = {"shapes": {t: effective(shapes,t) for t in COLORS}, "mesh": mesh(shapes["model"]),
             "images": images,"plan":animation, "colors":COLORS,"edges":EDGES, "bounds":bounds,

@@ -1,7 +1,7 @@
 {
   "schema": "pixforge.application/v4",
   "application": "PixForge",
-  "version": "4.2.3",
+  "version": "4.12.1",
   "public_api_version": 4,
   "interfaces": [
     "resident-http",
@@ -30,11 +30,17 @@
   },
   "compatibility": "One executable for the desktop and grouped commands. Command parameters are validated; help is on demand. Existing project/history formats remain compatible.",
   "capabilities": [
+    "minecraft-player-skin/v1",
+    "minecraft-player-skin-atlas/v1",
     "minecraft-assets/v1",
     "forge-runtime/v1",
     "minecraft-preview/v1",
     "minecraft-animation/v1",
     "minecraft-regression/v1",
-    "minecraft-material/v1"
+    "minecraft-material/v1",
+    "blockbench-player-rig/v1",
+    "blockbench-player-rig/v2",
+    "rig-component-edit/v1",
+    "canvas-resize/v1"
   ]
 }

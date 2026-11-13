@@ -12,14 +12,15 @@ constexpr std::array<const wchar_t*,3> overlayLabels={L"基础形状",L"碰撞�
 }
 
 void App::createPanels(){
+    createRigTools();
     for(int i=0;i<int(TOOLS.size());++i){
         HWND b=button(hwnd,"tool_"+TOOLS[i],toolNames[i],[this,i]{selectTool(i);},[this,i]{return tool==i;});
         buttons.at(GetDlgCtrlID(b)).icon=i;
     }
-    sizeCombo=combo(hwnd,"brush_size",{});opacityCombo=combo(hwnd,"opacity",{});
-    for(int i=1;i<=32;++i){auto label=std::to_wstring(i)+L" px";SendMessageW(sizeCombo,CB_ADDSTRING,0,LPARAM(label.c_str()));}
-    for(int i=1;i<=100;++i){auto label=std::to_wstring(i)+L"%";SendMessageW(opacityCombo,CB_ADDSTRING,0,LPARAM(label.c_str()));}
-    comboSet(sizeCombo,brushSize-1);comboSet(opacityCombo,99);
+    sizeField=handles["brush_size"]=numberField::create(hwnd,nextButton++,font,L" px",1,brushLimit(),brushSize,true,
+        [this](double v){brushSize=int(v);});
+    opacityField=handles["opacity"]=numberField::create(hwnd,nextButton++,font,L"%",0,100,brushOpacity,false,
+        [this](double v){brushOpacity=v;});
     button(hwnd,"mirror_x",L"镜像 X",[this]{mirrorX=!mirrorX;},[this]{return mirrorX;});
     button(hwnd,"mirror_y",L"镜像 Y",[this]{mirrorY=!mirrorY;},[this]{return mirrorY;});
     button(hwnd,"solid",L"实心形状",[this]{solid=!solid;},[this]{return solid;});
@@ -57,6 +58,10 @@ void App::createPanels(){
     };
     yawSlider=slider("yaw",L"水平角",-180,180);pitchSlider=slider("pitch",L"俯仰角",-89,90);
     addSwitch("show_model",L"材质模型",[this]{showModel=!showModel;requestRender();},[this]{return showModel;});
+    constexpr std::array<const wchar_t*,6> clothing={L"帽子",L"外套",L"右袖",L"左袖",L"右裤腿",L"左裤腿"};
+    for(size_t i=0;i<SKIN_SWITCHES.size();++i)
+        addSwitch(("skin_"+std::string(SKIN_SWITCHES[i])).c_str(),clothing[i],
+                  [this,i]{hiddenSkin[i]=!hiddenSkin[i];requestRender();},[this,i]{return !hiddenSkin[i];});
     for(int i=0;i<3;++i)addSwitch(overlayNames[i],overlayLabels[i],[this,i]{overlays[i]=!overlays[i];requestRender();},[this,i]{return overlays[i];});
     for(auto [key,label,factor]:{std::tuple<const char*,const wchar_t*,double>{"zoom_out",L"缩小",.8},{"zoom_in",L"放大",1.25}})
         button(hwnd,key,label,[this,factor]{sceneZoom=pf::clamp(sceneZoom*factor,.1,8.);requestRender();statusBar->redraw();});

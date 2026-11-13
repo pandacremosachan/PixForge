@@ -28,7 +28,7 @@ call "$vcvars" >nul
 if errorlevel 1 exit /b 1
 rc.exe /nologo /I "$source" /fo "$buildPath\app.res" "$source\app.rc"
 if errorlevel 1 exit /b 1
-cl.exe /nologo /std:c++20 /EHsc /W4 /utf-8 /permissive- $modeFlags /DUNICODE /D_UNICODE /D_WIN32_WINNT=0x0A00 /DWINVER=0x0A00 /Fo"$buildPath\\" /Fe"$executable" "$source\main.cpp" "$source\app.cpp" "$source\workspace_ui.cpp" "$source\workspace_panels.cpp" "$source\app_scene.cpp" "$source\scene_editor.cpp" "$source\minecraft_editor.cpp" "$source\minecraft_preview.cpp" "$source\minecraft_workbench.cpp" "$source\material_editor.cpp" "$buildPath\app.res" /link /SUBSYSTEM:CONSOLE /DYNAMICBASE /NXCOMPAT /MANIFEST:EMBED /MANIFESTINPUT:"$source\native.manifest"
+cl.exe /nologo /std:c++20 /EHsc /W4 /utf-8 /permissive- $modeFlags /DUNICODE /D_UNICODE /D_WIN32_WINNT=0x0A00 /DWINVER=0x0A00 /Fo"$buildPath\\" /Fe"$executable" "$source\main.cpp" "$source\app.cpp" "$source\choice_controls.cpp" "$source\number_field.cpp" "$source\start_page.cpp" "$source\workspace_ui.cpp" "$source\workspace_panels.cpp" "$source\app_scene.cpp" "$source\scene_editor.cpp" "$source\minecraft_editor.cpp" "$source\minecraft_preview.cpp" "$source\minecraft_workbench.cpp" "$source\material_editor.cpp" "$buildPath\app.res" /link /SUBSYSTEM:CONSOLE /DYNAMICBASE /NXCOMPAT /MANIFEST:EMBED /MANIFESTINPUT:"$source\native.manifest"
 exit /b %errorlevel%
 "@
 $commandPath = Join-Path $buildPath 'compile-native.cmd'

@@ -3,6 +3,7 @@ from dataclasses import dataclass
 import hashlib
 import json
 import os
+import shutil
 from pathlib import Path
 import tempfile
 
@@ -36,22 +37,27 @@ def change_summary(before, after):
     height = max(c.h for c in (before, after) if c is not None)
     views = []
     for canvas in (before, after):
-        view = Image.new("RGBA", (width, height))
-        if canvas is not None:
-            view.paste(canvas.composite(), (0, 0))
+        view = canvas.composite() if canvas is not None else None
+        if view is None or view.size != (width,height):
+            padded = Image.new("RGBA", (width, height))
+            if view is not None: padded.paste(view, (0,0))
+            view = padded
         views.append(view)
     channels = ImageChops.difference(*views).split()
     mask = channels[0]
     for channel in channels[1:]:
         mask = ImageChops.lighter(mask, channel)
     box = mask.getbbox()
-    previous = {layer.name: (layer.visible, layer.img.size, layer.img.tobytes()) for layer in before.layers} if before else {}
-    current = {layer.name: (layer.visible, layer.img.size, layer.img.tobytes()) for layer in after.layers} if after else {}
+    previous = {layer.name: layer for layer in before.layers} if before else {}
+    current = {layer.name: layer for layer in after.layers} if after else {}
+    def differs(name):
+        a,b=previous.get(name),current.get(name)
+        return a is None or b is None or a.visible!=b.visible or a.img!=b.img
     return {"size_before": [before.w, before.h] if before else None,
             "size_after": [after.w, after.h] if after else None,
             "changed_pixels": width * height - mask.histogram()[0],
             "changed_region": [box[0], box[1], box[2] - box[0], box[3] - box[1]] if box else None,
-            "changed_layers": [name for name in dict.fromkeys([*previous, *current]) if previous.get(name) != current.get(name)]}
+            "changed_layers": [name for name in dict.fromkeys([*previous, *current]) if differs(name)]}
 
 
 def commit_files(outputs):
@@ -70,12 +76,14 @@ def commit_files(outputs):
             fd, temporary = tempfile.mkstemp(prefix=".pixelforge-", dir=path.parent)
             staged[path] = Path(temporary)
             with os.fdopen(fd, "wb") as stream:
-                stream.write(content)
-            if path.exists():
+                if isinstance(content,(bytes,bytearray,memoryview)): stream.write(content)
+                else: stream.writelines(content)
+            # A single atomic replacement cannot require rollback of an earlier target.
+            if len(outputs)>1 and path.exists():
                 fd, temporary = tempfile.mkstemp(prefix=".pixelforge-backup-", dir=path.parent)
                 backups[path] = Path(temporary)
-                with os.fdopen(fd, "wb") as stream:
-                    stream.write(path.read_bytes())
+                with os.fdopen(fd, "wb") as stream, path.open("rb") as source:
+                    shutil.copyfileobj(source, stream, 1024*1024)
             else:
                 backups[path] = None
         for path, temporary in staged.items():

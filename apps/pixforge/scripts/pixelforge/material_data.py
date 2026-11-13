@@ -1,5 +1,5 @@
 """LabPBR 1.3 byte data, separate from color layers and alpha compositing."""
-from copy import copy, deepcopy
+from copy import deepcopy
 import base64
 from collections import Counter
 import hashlib

@@ -1,6 +1,6 @@
 {
   "origin": "existing user-level PixForge skill",
-  "tool_version": "4.2.3",
+  "tool_version": "4.12.1",
   "license": "not declared in original installation",
   "capabilities": [
     "static pixels",
@@ -79,7 +79,7 @@
   },
   "software_source": "apps/pixforge",
   "skill_source": ".agents/skills/pixelforge",
-  "skill_version": "3.2.3",
+  "skill_version": "3.9.1",
   "public_api_version": 4,
   "minecraft_assets": {
     "capability": "minecraft-assets/v1",
@@ -116,5 +116,24 @@
     "ownership": "standalone application; skill calls only public interfaces",
     "third_party_research_assets_included": false,
     "in_game_validated": false
+  },
+  "player_skin": {
+    "capability": "minecraft-player-skin-atlas/v1",
+    "profile": "Java Edition · 64x64 · Classic/Wide and Slim",
+    "official_guide": "https://www.minecraft.net/en-us/article/what-is-minecraft-skin",
+    "reference_version": "1.20.1",
+    "reference_asset": "assets/minecraft/textures/entity/player/wide/steve.png",
+    "reference_sha256": "090da8d92c9f54fcbea87e6a2fb94125604a5a92a9ed6a52c10ee61c3b84bb79",
+    "implementation": "Wearer-relative semantic addresses are derived from the active player model's face rectangles. Clothing switches mask preview pixels without editing the atlas. Mojang art is not bundled."
+  },
+  "player_rig": {
+    "capability": "blockbench-player-rig/v1",
+    "profile": "Single-atlas Bedrock Entity with numeric linear/step transform animations; YSM spec 2",
+    "references": [
+      "https://github.com/JannisX11/blockbench/blob/v4.12.6/js/io/formats/bedrock.js",
+      "https://ysm.cfpa.team/wiki/struct/",
+      "https://ysm.cfpa.team/wiki/tph2yetr/"
+    ],
+    "implementation": "Original rig document, native editing and interoperable format writers; no Blockbench or YSM executable, third-party model, or upstream code bundled."
   }
 }

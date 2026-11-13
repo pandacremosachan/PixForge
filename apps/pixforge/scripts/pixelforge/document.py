@@ -99,6 +99,7 @@ class Document:
         self.notes, self.events, self.undo_stack, self.redo_stack = [], [], [], []
         self.stroke = None
         self.view_frame, self.source_path = 0, None
+        self._status_key, self._status_hashes = None, None
         try:
             self.approval_ledger = json.loads((self.runtime / "approvals.json").read_text(encoding="utf-8"))
             if not isinstance(self.approval_ledger, dict):
@@ -111,8 +112,8 @@ class Document:
     def canvas(self):
         return self.executor.canvas
 
-    def art_digest(self):
-        data = self.canvas.to_dict()
+    def art_digest(self, canvas_data=None):
+        data = self.canvas.to_dict() if canvas_data is None else canvas_data.copy()
         data.pop("active", None)
         data.pop("mirror", None)
         data.pop("palette", None)
@@ -127,8 +128,8 @@ class Document:
             content["material_data"] = self.material_data
         return checksum(encoded(content))
 
-    def project_digest(self):
-        data = self.canvas.to_dict()
+    def project_digest(self, canvas_data=None):
+        data = self.canvas.to_dict() if canvas_data is None else canvas_data.copy()
         data.pop("active", None)
         content = {"canvas": data, "animation": self.animation, "animation_source": self.animation_source,
                    "approval": self.approval, "notes": self.notes}
@@ -154,25 +155,34 @@ class Document:
                 return False
         return True
 
-    def approved(self):
+    def approved(self, digest=None, dependency=None):
         return bool(self.approval and self.approval["document_id"] == self.document_id
                     and self.approval_ledger.get(self.document_id) == self.approval
-                    and self.approval["content_digest"] == self.art_digest() and self.dependency_current())
+                    and self.approval["content_digest"] == (self.art_digest() if digest is None else digest)
+                    and (self.dependency_current() if dependency is None else dependency))
 
-    def status(self):
+    def status(self, canvas_data=None):
         from .material_data import summary as material_summary
-        return {"document_id": self.document_id, "revision": self.revision, "content_digest": self.art_digest(),
+        # Cache only published revisions. Editing code still hashes its candidate before committing.
+        key = (self.document_id, self.revision)
+        if key != self._status_key:
+            data = self.canvas.to_dict() if canvas_data is None else canvas_data
+            self._status_hashes = self.art_digest(data), self.project_digest(data)
+            self._status_key = key
+        art, project = self._status_hashes
+        dependency = self.dependency_current()
+        return {"document_id": self.document_id, "revision": self.revision, "content_digest": art,
                 "size": [self.canvas.w, self.canvas.h], "active_layer": self.canvas.active.name,
                 "layers": [{"name": layer.name, "visible": layer.visible} for layer in self.canvas.layers],
                 "palette": {char: color_to_hex(color) for char, color in self.canvas.palette.chars.items()},
-                "animation": self.animation, "animation_source_current": self.dependency_current(),
+                "animation": self.animation, "animation_source_current": dependency,
                 "scene_animation": deepcopy(self.scene_animation),
                 "minecraft_project": deepcopy(self.minecraft_project),
                 "material_data": material_summary(self.material_data),
-                "shapes": deepcopy(self.shapes), "shape_report": shape_core.report(self.shapes),
+                "shapes": {**self.shapes, "model": {k:v for k,v in self.shapes["model"].items() if k!="rig_source"}} if (self.shapes.get("model") or {}).get("rig_source") else deepcopy(self.shapes), "shape_report": shape_core.report(self.shapes),
                 "shape_construction_defaults": construction_defaults(),
-                "approved_for_export": self.approved(), "approval": self.approval,
-                "project_path": str(self.project_path) if self.project_path else None, "dirty": self.dirty,
+                "approved_for_export": self.approved(art,dependency), "approval": self.approval,
+                "project_path": str(self.project_path) if self.project_path else None, "dirty": project != self.saved_digest,
                 "source_path": str(self.source_path) if self.source_path else None,
                 "view_frame": min(self.view_frame, len(self.animation["rectangles"]) - 1),
                 "manual_stroke_active": self.stroke is not None, "notes": self.notes[-30:], "events": self.events[-15:],
@@ -190,8 +200,8 @@ class Document:
         self.events.append({"time": now(), "label": str(label)[:500], "source": source, "revision": self.revision})
         self.events = self.events[-100:]
 
-    def snapshot(self):
-        result = (self.canvas.clone(), deepcopy(self.animation), deepcopy(self.animation_source), deepcopy(self.shapes), None)  # Reserved history slot; keep scene/material indices stable.
+    def snapshot(self, canvas=None):
+        result = (self.canvas.clone() if canvas is None else canvas, deepcopy(self.animation), deepcopy(self.animation_source), deepcopy(self.shapes), None)  # Reserved history slot; keep scene/material indices stable.
         if self.material_data is not None:
             return result + (deepcopy(self.scene_animation), deepcopy(self.minecraft_project), deepcopy(self.material_data))
         if self.minecraft_project is not None:
@@ -218,27 +228,27 @@ class Document:
             words = line.strip().split()
             if words and words[0].lower() in {"new", "load", "render", "save", "undo", "redo"}:
                 raise StudioError("共享绘图批次只编辑当前工程；新建、打开、保存、导出和撤销使用各自接口")
-        previous, snapshot = self.art_digest(), self.snapshot()
+        previous, baseline = self.art_digest(), self.canvas
         batch = self.executor.run_batch(script, dry_run=dry_run, publish_outputs=False,
-                                        include_preview=include_preview, preview_options=preview_options)
+                                        include_preview=include_preview, preview_options=preview_options, document_history=True)
         candidate_animation=self.animation
-        resized=[batch.canvas.w,batch.canvas.h]!=[snapshot[0].w,snapshot[0].h]
+        resized=(batch.canvas.w,batch.canvas.h)!=(baseline.w,baseline.h)
         if resized and self.material_data is not None:
-            if not dry_run:self.executor=Executor(snapshot[0])
+            if not dry_run:self.executor=Executor(baseline)
             raise StudioError("已绑定数据图集；尺寸修改须同步数据贴图。增删动画帧会自动同步，普通绘制不能隐式缩放数据", "MATERIAL_SIZE_LOCKED")
         if resized:candidate_animation=playback({},(batch.canvas.w,batch.canvas.h))
         try:
             from .scene_program import validate_binding
             validate_binding(self.scene_animation,candidate_animation)
         except ValueError:
-            if not dry_run:self.executor=Executor(snapshot[0])
+            if not dry_run:self.executor=Executor(baseline)
             raise
         if not dry_run and batch.summary["state_changed"]:
             # Canvas-changing scripts reset only a now-invalid frame layout.
-            if [self.canvas.w, self.canvas.h] != [snapshot[0].w, snapshot[0].h]:
+            self.remember(self.snapshot(baseline))
+            if resized:
                 self.animation = playback({}, (self.canvas.w, self.canvas.h))
                 self.animation_source = None
-            self.remember(snapshot)
             self.changed(label, previous, source)
         return batch
 
@@ -247,7 +257,7 @@ class Document:
         stack, opposite = (self.undo_stack, self.redo_stack) if action == "undo" else (self.redo_stack, self.undo_stack)
         if not stack:
             return False
-        opposite.append(self.snapshot())
+        opposite.append(self.snapshot(self.canvas))
         restored = stack.pop()
         canvas, self.animation, self.animation_source, self.shapes = restored[:4]
         self.scene_animation = deepcopy(restored[5]) if len(restored)>5 else None
@@ -261,15 +271,13 @@ class Document:
 
     def begin_stroke(self):
         self.guard(observed=False)
-        self.stroke = {"canvas": self.canvas.clone(), "before": self.snapshot(), "digest": self.art_digest()}
+        self.stroke = {"canvas": self.canvas.clone(), "before": self.snapshot(self.canvas), "digest": self.art_digest()}
 
     def change_canvas(self, callback, label):
         self.guard(observed=False)
-        candidate, before, previous = self.canvas.clone(), self.snapshot(), self.art_digest()
+        candidate, before, previous = self.canvas.clone(), self.snapshot(self.canvas), self.art_digest()
         callback(candidate)
         if canvas_digest(candidate) != canvas_digest(self.canvas):
-            candidate._undo = [*self.canvas._undo, self.canvas._snapshot()][-50:]
-            candidate._redo.clear()
             self.executor.canvas = candidate
             self.remember(before)
             self.changed(label, previous)
@@ -285,8 +293,6 @@ class Document:
             return
         stroke, self.stroke = self.stroke, None
         if not cancel and canvas_digest(stroke["canvas"]) != canvas_digest(self.canvas):
-            stroke["canvas"]._undo = [*self.canvas._undo, self.canvas._snapshot()][-50:]
-            stroke["canvas"]._redo.clear()
             self.executor.canvas = stroke["canvas"]
             self.remember(stroke["before"])
             self.changed("手动笔画", stroke["digest"])
@@ -523,9 +529,7 @@ class Document:
         validate_binding(scene,animation)
         from .material_data import remap as remap_material
         material=remap_material(self.material_data,rectangles,order,new_rectangles,(candidate.w,candidate.h))
-        before, previous = self.snapshot(), self.art_digest()
-        candidate._undo = [*self.canvas._undo, self.canvas._snapshot()][-50:]
-        candidate._redo.clear()
+        before, previous = self.snapshot(self.canvas), self.art_digest()
         self.executor = Executor(candidate)
         self.animation, self.animation_source = animation, None
         self.scene_animation = scene
@@ -579,14 +583,79 @@ class Document:
         # new() allocates/validates the blank canvas before recovery/replacement.
         self.new(*plan["canvas_size"])
         self.shapes = deepcopy(plan["shapes"])
+        if plan["preset"] in ("player_rig", "component_model"):
+            from .player_rig import paint_template
+            self.scene_animation = plan["scene_animation"]
+            paint_template(self.canvas, plan["settings"]["rig"])
+        if plan["preset"] == "player_skin":
+            from .player_skin import layers
+            layers(self.canvas, self.shapes["model"])
         if self.shapes["model"] is not None:
             self.saved_digest = "new-model-project-unsaved"
         self.event("按模型 UV 新建工程：" + plan["preset"])
         return plan
 
-    def project_data(self):
+    def edit_rig(self, operations):
+        from .player_rig import compile_rig, edited
+        model=self.shapes.get("model") or {}
+        if "rig_source" in model:
+            from . import rig_studio as studio
+            before=self.art_digest()
+            src=studio.edit(model,operations)
+            if any(op["op"] in ("texture","add_texture") and "source" in op for op in operations):
+                # Keep painted regions of the other images when changing one source.
+                painted=studio.exported(model,self.canvas.composite())
+                for i,old in enumerate(studio.unpack(model["rig_source"])["textures"]):
+                    if src["textures"][i]["source"]==old["source"]:
+                        src["textures"][i]["source"]=painted["textures"][i]["source"]
+                shapes,image=studio.from_source(src)
+                next_canvas=Canvas(*image.size);next_canvas.active.img=image
+            else:
+                shapes=studio.compile_model(src,[t["rect"] for t in model["player_rig"]["textures"]],(self.canvas.w,self.canvas.h))
+                next_canvas=None
+            if shapes!=self.shapes:
+                self.remember(self.snapshot());self.shapes={**self.shapes,"model":shapes["model"]}
+                if next_canvas is not None:
+                    self.executor=Executor(next_canvas);self.animation=playback({},(next_canvas.w,next_canvas.h))
+                self.changed("编辑角色模型",before)
+            return
+        rig=(self.shapes.get("model") or {}).get("player_rig")
+        if rig is None: raise StudioError("先新建骨骼玩家模型或打开 Bedrock .bbmodel")
+        updated=edited(rig,operations)
+        if updated!=rig:
+            shapes,scene=compile_rig(updated)
+            before=self.art_digest();self.remember(self.snapshot())
+            self.shapes,self.scene_animation=shapes,scene
+            self.changed("编辑骨骼玩家模型",before)
+
+    def write_rig(self,path,kind,metadata,overwrite):
+        from .rig_files import project, ysm, encoded as readable
+        rig=(self.shapes.get("model") or {}).get("player_rig")
+        if rig is None:raise StudioError("当前工程不是骨骼玩家模型")
+        path=Path(path).resolve()
+        ext=".bbmodel" if kind=="bbmodel" else ".zip"
+        if path.suffix.lower()!=ext:raise StudioError("此格式的扩展名为 "+ext)
+        if path==self.project_path or (path.exists() and not overwrite):raise StudioError("请选择新文件名或明确覆盖","FILE_EXISTS")
+        image=self.canvas.composite()
+        model=self.shapes["model"]
+        if "rig_source" in model:
+            from . import rig_studio as studio
+            src=studio.exported(model,image)
+            if kind=="bbmodel":content=readable(src)
+            else:
+                from .rig_package import ysm_package
+                if not self.approved():raise StudioError("请先确认当前角色模型和材质","USER_CONFIRMATION_REQUIRED")
+                content=ysm_package(src,metadata)
+        elif kind=="bbmodel":content=readable(project(rig,image))
+        else:
+            if not self.approved():raise StudioError("请先确认当前角色模型和材质","USER_CONFIRMATION_REQUIRED")
+            content=ysm(rig,image,metadata)
+        commit_files({path:content})
+        return {"path":str(path),"format":kind,"bytes":len(content),"content_digest":self.art_digest()}
+
+    def project_data(self, canvas_data=None):
         schema = MATERIAL_SCHEMA if self.material_data is not None else RUNTIME_SCHEMA if self.minecraft_project and self.minecraft_project.get("runtime") else MINECRAFT_SCHEMA if self.minecraft_project is not None else SCHEMA
-        return {**self.canvas.to_dict(), "pixelforge_desktop": {"schema": schema, "document_id": self.document_id,
+        return {**(self.canvas.to_dict() if canvas_data is None else canvas_data), "pixelforge_desktop": {"schema": schema, "document_id": self.document_id,
                 "animation": self.animation, "animation_source": self.animation_source,
                 "shapes": self.shapes,
                 "approval": self.approval, "notes": self.notes,
@@ -611,23 +680,38 @@ class Document:
             raise StudioError("可编辑工程使用 .pixforge 或 .json；PNG 请在用户确认后导出")
         if self.project_path == path and path.exists() and self.project_stamp != checksum(path.read_bytes()):
             raise StudioError("工程文件被外部修改，请另存副本", "FILE_CONFLICT")
-        data = encoded(self.project_data())
+        canvas_data = self.canvas.to_dict()
+        data = encoded(self.project_data(canvas_data))
         commit_files({path: data})
         self.project_path, self.project_stamp = path, checksum(data)
-        self.saved_digest = self.project_digest()
+        self.saved_digest = self.project_digest(canvas_data)
         self.event("保存可编辑工程")
         return path
 
-    def open(self, path):
+    def open(self, path, arm_model=None):
         self.guard(observed=False)
         path = Path(path).resolve()
         metadata = {}
         project_content = None
+        if arm_model is not None and path.suffix.lower() != ".png":
+            raise StudioError("作为玩家皮肤打开时请选择 64×64 PNG")
         if path.suffix.lower() == ".png":
             from .texture_review import load_png
             image = load_png(path)
             canvas = Canvas(*image.size)
-            canvas.active.img = image
+            if arm_model is None:
+                canvas.active.img = image
+            else:
+                from . import player_skin
+                if image.size != (player_skin.SIZE, player_skin.SIZE):
+                    raise StudioError("玩家皮肤 PNG 尺寸须为 64×64")
+                skin_model = player_skin.model(arm_model)
+                player_skin.layers(canvas, skin_model, image)
+                metadata["shapes"] = {**shape_core.default_shapes(), "base": [], "model": skin_model}
+        elif path.suffix.lower() == ".bbmodel":
+            from .rig_studio import read
+            metadata["shapes"],image=read(path)
+            canvas=Canvas(*image.size);canvas.active.img=image
         elif path.suffix.lower() == ".px":
             candidate = Executor()
             candidate.run_batch(path.read_text(encoding="utf-8"), publish_outputs=False)
@@ -644,7 +728,8 @@ class Document:
             if metadata and metadata.get("schema") not in (SCHEMA, MINECRAFT_SCHEMA, RUNTIME_SCHEMA, MATERIAL_SCHEMA):
                 raise StudioError("不支持的桌面工程格式")
         animation = playback(metadata.get("animation", {}), (canvas.w, canvas.h))
-        shapes = shape_core.normalize(metadata.get("shapes", shape_core.default_shapes()))
+        from .rig_studio import restore_edit_view
+        shapes = restore_edit_view(shape_core.normalize(metadata.get("shapes", shape_core.default_shapes())),(canvas.w,canvas.h))
         from .scene_animation import normalize as normalize_scene
         scene = normalize_scene(metadata.get("scene_animation"), shapes["model"])
         from .scene_program import validate_binding
@@ -680,7 +765,7 @@ class Document:
         self.view_frame, self.source_path = 0, path
         self.approval, self.notes = metadata.get("approval"), metadata.get("notes", [])
         self.undo_stack, self.redo_stack = [], []
-        self.project_path = path if path.suffix.lower() not in (".png", ".px") else None
+        self.project_path = path if path.suffix.lower() not in (".png", ".px", ".bbmodel") else None
         self.project_stamp = checksum(project_content) if self.project_path else None
         if self.approval and not self.approved():
             self.approval = None

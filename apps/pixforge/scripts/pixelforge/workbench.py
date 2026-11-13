@@ -96,9 +96,9 @@ class Workbench:
         desktop = self.wait(expected, deadline, panel)
         if capture.get("document_id") != expected["document_id"] or capture.get("revision") != expected["revision"]:
             raise StudioError("截图版本与本轮工程不一致", "REVISION_CONFLICT")
-        from .session import image_data
+        from .image_bytes import png_base64
         from .texture_review import load_png
-        return {"desktop": desktop, "capture": capture, "visual_review_required": True, "image": image_data(load_png(path))}
+        return {"desktop": desktop, "capture": capture, "visual_review_required": True, "image": png_base64(load_png(path))}
 
     def close(self, document_id, revision, timeout=20):
         deadline = self.deadline(timeout)

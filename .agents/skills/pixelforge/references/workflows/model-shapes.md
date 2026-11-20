@@ -41,6 +41,12 @@
 
 collision/selection 的 null 继承 base，[] 为空覆盖。展示外观时用 `overlays: []`；讨论碰撞时用 `overlays: ["collision"]`，线框能直接看出保留的开口。见 [形状协议](../shapes.md)。
 
+## 跨格外观与多格占位
+
+- **外观**以 16 个模型单位为一格。双格工作台沿 X 轴可画到 `0..32`，在同一个工程中制作台面、各条桌腿和贴图。Java 1.20.1 静态模型的 `elements.from/to` 每轴允许 `-16..32`。需要更大坐标范围时，由目标项目按格拆分模型或采用自定义渲染。
+- **碰撞与选中形状**可按整件模型的坐标编辑并预览，例如分别给台面和桌腿设置盒子，保留桌下空隙。形状可导出为 JSON 或 Forge Java helper。做成多格方块时，游戏项目按占用格拆分所需的碰撞和选中形状，换算为各格的局部坐标。
+- **实际占位**可以采用原版床的方式。物品栏里是一个物品，放下后由模组检查并写入多个方块位置。放置时按朝向换算占用格，检查各格是否可放置，破坏任意一部分时拆除整件并按整件结算掉落。PixForge 当前提供模型、贴图和形状数据，多格规则与各格资源由目标项目接入。[Forge 静态注册](../forge-static.md)
+
 ## 交付
 
 静态资源配置 target 后走 [公共导出](../operations.md#资源检查与正式导出)，动态内容先走 [场景动画](scene-animation.md)。asset export-shapes 输出 JSON 或 format=forge-1.20.1 的 Java helper，文件名与 class_name 一致；接到真实 Block 的 getShape/getCollisionShape，朝向/状态由项目实现。资源包不改变碰撞。

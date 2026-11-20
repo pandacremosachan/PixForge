@@ -12,7 +12,7 @@ PixForge 是制作像素画、纹理模型和动画的 Windows 工作台。做�
 
 ## 使用技能
 
-下载 [Windows x64 技能包](https://github.com/pandacremosachan/PixForge/releases/download/v4.12.1/PixForge-Skill-3.9.1-Windows-x64.zip)，解压出完整的 **`pixelforge` 文件夹**。其中已经包含工作台、运行环境和模板；技能的可用范围由放置目录决定：
+下载 [Windows x64 技能包](https://github.com/pandacremosachan/PixForge/releases/download/skill-v3.11.3/PixForge-Skill-3.11.3-Windows-x64.zip)，解压出完整的 **`pixelforge` 文件夹**。其中已经包含工作台、运行环境和模板；技能的可用范围由放置目录决定：
 
 | 可用范围 | 放置后的目录 |
 | --- | --- |

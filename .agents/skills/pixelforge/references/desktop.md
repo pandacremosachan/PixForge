@@ -4,20 +4,23 @@
 
 ## 启动页与工程预设
 
-双击 EXE 或在编辑器按 Ctrl+N 打开任务选择页。`workbench state` 的 `panel: "start"` 表示正在选择，`start_task` 是高亮的 `block`、`item` 或 `model`，选择尚未改动工程。已有作品直接继续当前工程。新建时读取 `project state`，向 `project create` 提交下表的 `settings` 和观察到的 `expected_document_id`、`expected_revision`。同一份 `settings` 可以先用 `project plan` 只读查看图集和 UV。
+双击 EXE 或在编辑器按 Ctrl+N 打开任务选择页。`workbench state` 的 `panel: "start"` 表示正在选择，`start_task` 是高亮的 `block`、`item`、`model` 或 `gui`，选择尚未改动工程。已有作品直接继续当前工程。新建时读取 `project state`，向 `project create` 提交下表的 `settings` 和观察到的 `expected_document_id`、`expected_revision`。同一份 `settings` 可以先用 `project plan` 只读查看图集和 UV。
 
 | 启动页选择 | `settings` 示例 | 起点 |
 |---|---|---|
 | 方块 · 六面共用 | `{"preset":"cube_shared","face_size":16}` | 一个可编辑方块，六面共用 16×16 贴图 |
 | 方块 · 六面分别绘制 | `{"preset":"cube_faces","face_size":16}` | 一个可编辑方块，每面 16×16，展开为 48×32 图集 |
 | 物品贴图 | `{"preset":"pixels","width":16,"height":16}` | 透明二维画布 |
-| 三维建模 · 角色建模 | `{"preset":"player_rig"}` | 玩家骨架，默认 128×128 图集 |
+| 角色建模 | `{"preset":"player_rig"}` | 玩家骨架，默认 128×128 图集 |
+| GUI 设计 · 容器界面 / 普通界面 | `{"preset":"gui","host":"container"}` 或 `{"preset":"gui","host":"screen"}` | 默认熔炉烧炼，也可选工作台或空白。组件树、主题贴图和加工动画共用一份工程 |
 
 方块在同一工程里切换「材质」和「模型」。两种贴图布局都支持添加部件和逐面 UV。旧命令模板 `component_model` 仍可创建 64×64 图集的部件工程。
 
 让用户接手贴图时，将 `workbench view` 的 `settings` 设为 `{"panel":"pixels","tool":"pen"}`；六面分别绘制时可加 `"uv_guides":true`。接手部件建模时用 `{"panel":"shapes","rig_mode":"model"}`。这些视图设置只切换显示，不创建工程。
 
 ## 材质与模型
+
+GUI 工程可用 `workbench view` 的 `{"panel":"gui"}` 进入设计器，用 `{"panel":"pixels"}` 进入主题贴图。参见 [GUI 设计](workflows/gui-design.md)。
 
 材质页默认展开工具、调色板和图层。从启动页创建贴图会选中画笔。笔宽上限为当前帧的短边，不透明度为 0–100%；可单击数值输入，或左右拖动。用 `workbench state` 读取 `brush_size_range`；改变实际像素尺寸用 `canvas resize` 的 `width/height`，按帧最近邻缩放，可撤销。原版玩家皮肤固定为 64×64。画板上方可切换适应、原尺寸、网格、平铺、模型 UV 和动画洋葱皮。
 

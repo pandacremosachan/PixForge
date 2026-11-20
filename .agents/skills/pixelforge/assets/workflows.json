@@ -1,7 +1,7 @@
 {
   "schema": "pixforge.skill-workflows/v1",
-  "skill_version": "3.9.1",
-  "software_baseline": "4.12.1",
+  "skill_version": "3.11.2",
+  "software_baseline": "4.14.2",
   "public_api_version": 4,
   "recipes": [
     {
@@ -146,6 +146,13 @@
         16,
         16
       ]
+    },
+    {
+      "id": "gui_layout",
+      "description": "Minecraft GUI 组件树、九宫格主题、翻译与加工动画",
+      "workflow": "references/workflows/gui-design.md",
+      "capabilities": ["minecraft-gui-layout/v1"],
+      "preset": "gui"
     },
     {
       "id": "gui",

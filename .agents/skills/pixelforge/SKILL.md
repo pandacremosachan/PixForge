@@ -1,11 +1,40 @@
 ---
 name: pixelforge
-description: 用 PixForge 制作 Minecraft 原版 PNG 皮肤、支持部件多选、逐面 UV、多贴图和动画曲线的 Blockbench / YSM 骨骼模型、方块与物品材质、GUI、像素画、可放置模型与碰撞形状，以及像素和部件动画。
+description: 用 PixForge 设计和导出 Minecraft GUI，包括熔炉、工作台等容器界面、配置页和手册，支持组件布局，使用 SVG 和逐像素绘制制作九宫格主题与加工动画。也可制作原版 PNG 皮肤、支持多选、逐面 UV、多贴图和动画曲线的 Blockbench / YSM 骨骼模型、方块与物品材质、可放置模型与碰撞形状、像素画和部件动画。
 ---
 
 # PixForge
 
 [放置目录](INSTALL.md)决定此技能仅对当前项目可用，还是对当前用户的所有 Codex 项目可用。
+
+## 能制作什么
+
+| 成品 | 常见例子和交付内容 | 工作流与模板 |
+|---|---|---|
+| 平面物品与工具 | 矿料、零件、食物、工具等物品图标，交付透明 PNG 和物品模型 JSON | [物品](references/workflows/item.md) · `item` |
+| 三维手持物品 | 扳手、手持仪器、展示品等，制作立体模型和贴图，可分别设置手持与物品栏视图 | [三维物品](references/workflows/item.md#三维物品) · `item/project-3d.json` + `item/target.json` |
+| 普通方块 | 石材、砖块、面板等，制作六面共用或分面贴图、方块模型和方块状态资源 | [方块](references/workflows/block.md) · `block-shared` / `block-faces` |
+| 单格自定义放置物 | 盆栽、路灯底座、小型机器等，制作部件、逐面 UV、贴图、碰撞和选中形状 | [模型与形状](references/workflows/model-shapes.md) · [部件建模与逐面 UV](references/workflows/rig-components.md) · `custom-model` |
+| 跨格放置物 | 双格工作台、长桌、大型机器等，可制作跨格外观、碰撞和选中形状。一个物品放下后实际占用多格，由模组实现 | [跨格外观与多格占位](references/workflows/model-shapes.md#跨格外观与多格占位) · `custom-model` |
+| Java 原版玩家皮肤 | 宽臂或细臂皮肤、服装外层，交付 64×64 PNG | [玩家皮肤](references/workflows/player-skin.md) · `player-skin/classic` / `player-skin/slim` |
+| 骨骼玩家模型 | 自定义角色、发饰、可动部件等，支持多选变换、逐面 UV、多贴图和动画曲线，可导出 Blockbench `.bbmodel` 或 YSM 模型包 | [骨骼建模与导出](references/workflows/player-rig.md) · `player-rig` |
+| Minecraft GUI 界面 | 熔炉烧炼、工作台合成、配置页和手册，设置逻辑布局与贴图像素密度，使用 SVG 和逐像素绘制制作九宫格主题，预览翻译与动画并导出 GUI 资源 ZIP | [GUI 设计](references/workflows/gui-design.md) · `gui_layout` |
+| 独立像素画 | 像素插画、头像、风景等，交付原尺寸 PNG | [像素画工作流](references/workflows/gui.md) · `gui` |
+
+新建时按成品选择工作流，使用 `project plan` 或 `project create`。方块在同一工程中绘制贴图、添加和修改三维部件。工作台的「角色建模」入口用于骨骼角色。[启动页与预设对照](references/desktop.md#启动页与工程预设)
+
+读取 `assets/workflows.json` 和工作流引用的模板，将项目尺寸、资源 ID、模型及图案替换为实际值，再通过命令的文件参数传入。模板文件本身不构成软件依赖。
+
+### 动画、材质与已有资源
+
+| 需求 | 常见例子 | 工作流与模板 |
+|---|---|---|
+| 逐帧纹理动画 | 流动纹理、闪烁灯带 | [材质动画](references/workflows/texture-animation.md) · `texture-animation` |
+| 部件、状态与粒子 | 转子转动、机器启停和喷口粒子 | [场景动画](references/workflows/scene-animation.md) · `scene-states` / `particles` |
+| LabPBR 数据材质 | 法线、粗糙感或金属质感、发光等数据通道 | [LabPBR](references/workflows/labpbr.md) · `labpbr` |
+| 替换已有贴图 | 给已有方块或物品换配色、重绘材质 | [替换材质](references/workflows/replace-texture.md) · 真实源文件 |
+
+## 工作台与命令
 
 AI 通过命令绘制材质，用户在工作台查看同一份作品。材质页直接显示画板、绘图工具、调色板和图层；模型页直接显示视角和各形状的开关。有动画时出现播放条。
 
@@ -33,26 +62,6 @@ AI 通过命令绘制材质，用户在工作台查看同一份作品。材质�
 - `grid/rle/patch` 的 `.` 覆盖为透明；`canvas read` 返回可见层合成结果。叠画、半透明和镜像见 [像素协议](references/protocol.md)。
 - 正式输出保持原生尺寸，遵循消费项目的资源/datagen 边界。默认不启动游戏、安装运行时或修改存档。
 
-## 选择流程
-
-新建时按作品选择工程预设，直接调用 `project plan` 或 `project create`。方块在同一工程中绘制贴图、添加和修改三维部件；三维建模入口专用于骨骼角色。[启动页与预设对照](references/desktop.md#启动页与工程预设)
-
-| 任务 | 流程 | 模板 |
-|---|---|---|
-| 方块（画材质、改外形、搭部件） | [方块](references/workflows/block.md) · [部件建模与逐面 UV](references/workflows/rig-components.md) | block-shared / block-faces |
-| 平面物品、工具 | [物品](references/workflows/item.md) | item |
-| Java 原版玩家皮肤（新绘、改装 PNG、定位六面或预览服装开关） | [官方格式与工作流](references/workflows/player-skin.md) | player-skin/classic 或 player-skin/slim |
-| 骨骼玩家模型（多选变换、逐面 UV、多贴图、姿势与曲线、Blockbench、YSM） | [骨骼建模与导出](references/workflows/player-rig.md) | player-rig |
-| 3D 物品（手持、物品栏） | [三维物品](references/workflows/item.md#三维物品) | item/project-3d.json + item/target.json |
-| 修改已有材质 | [替换材质](references/workflows/replace-texture.md) | 真实源文件 |
-| 可放置模型、碰撞、选中框 | [模型与形状](references/workflows/model-shapes.md) | custom-model |
-| 纹理逐帧动画 | [材质动画](references/workflows/texture-animation.md) | texture-animation |
-| 部件运动、状态、粒子 | [场景动画](references/workflows/scene-animation.md) | scene-states / particles |
-| GUI、独立像素画 | [GUI](references/workflows/gui.md) | gui |
-| LabPBR 数据通道 | [LabPBR](references/workflows/labpbr.md) | labpbr |
-
-读取 `assets/workflows.json` 和对应模板，将项目尺寸、资源 ID、模型及图案替换为实际值，再通过命令的文件参数传入。模板文件本身不构成软件依赖。
-
 ## 按需参考
 
 - 设计：[视觉验收](references/design-review.md)、[平铺材质](references/textures.md)、[图标](references/icons.md)、[对称](references/symmetry.md)、[成套制作](references/upstream-workflows.md)。
@@ -60,4 +69,4 @@ AI 通过命令绘制材质，用户在工作台查看同一份作品。材质�
 - Minecraft：[资源与导出](references/minecraft-assets.md)、[资源机制](references/game-assets.md)、[模型预览](references/minecraft-preview.md)、[静态注册](references/forge-static.md)、[运行时接入](references/forge-runtime.md)。
 - 动态与数据：[播放定义](references/animation-review.md)、[场景协议](references/scene-animation.md)、[游戏回归](references/runtime-678.md)、[数据材质](references/material-data.md)。
 
-基线为 **PixForge 4.12.1 / 命令版本 4**。随包程序面向 **Windows x64**，内置 Minecraft 导出适配 **Java 1.20.1 / Forge**；其他平台或游戏版本先核对可用程序与项目适配器。
+基线为 **PixForge 4.14.3 / 命令版本 4**。随包程序面向 **Windows x64**，内置 Minecraft 导出适配 **Java 1.20.1 / Forge**；其他平台或游戏版本先核对可用程序与项目适配器。

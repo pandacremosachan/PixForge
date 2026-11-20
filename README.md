@@ -12,7 +12,7 @@ PixForge is a Windows workbench for pixel art, textured 3D models and animation.
 
 ## Use the skill
 
-Download the [PixForge skill for Windows x64](https://github.com/pandacremosachan/PixForge/releases/download/v4.12.1/PixForge-Skill-3.9.1-Windows-x64.zip). It includes the workbench, its private runtime and the skill templates. Extract the **whole `pixelforge` folder** and choose its location:
+Download the [PixForge skill for Windows x64](https://github.com/pandacremosachan/PixForge/releases/download/skill-v3.11.3/PixForge-Skill-3.11.3-Windows-x64.zip). It includes the workbench, its private runtime and the skill templates. Extract the **whole `pixelforge` folder** and choose its location:
 
 | Available in | Put the folder here |
 | --- | --- |
